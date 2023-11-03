@@ -1,8 +1,20 @@
-use super::{token::Token, Sp};
+use super::{token::{Token, CommentType}, Sp};
 
 #[derive(Debug)]
 pub enum LexError {
-    UnknownCharacter(char)
+    UnknownCharacter(char),
+    NumberParseFailed,
+    UnterminatedString(String),
+    UnterminatedComment(String)
+}
+
+fn is_ident_char(ch: char, start: bool) -> bool {
+    (ch.is_alphanumeric() && !(start && is_digit(ch)))
+        || ch == '_'
+}
+
+fn is_digit(ch: char) -> bool {
+    ch.is_ascii_digit()
 }
 
 pub struct Lexer<'a> {
@@ -47,14 +59,23 @@ impl<'a> Lexer<'a> {
             },
             '/' => {
                 if self.pick('/') {
-                    // TODO: implement comments
-                    Nothing
+                    if self.pick('/') {
+                        self.comment(3, CommentType::Doc, "\n")
+                    } else {
+                        self.comment(2, CommentType::Regular, "\n")
+                    }
+                } else if self.pick('*') {
+                    self.comment(2, CommentType::Regular, "*/")
                 } else {
                     self.eq_variant(Div, DivEq)
                 }
             },
             '%' => self.eq_variant(Mod, ModEq),
-            '.' => Dot,
+            '.' => { 
+                if is_digit(self.peek()) {
+                    self.number(true)
+                } else { Dot }
+            }
             '?' => Try,
             '!' => self.eq_variant(Not, NotEq),
             '=' => self.eq_variant(Assign, Eq),
@@ -64,14 +85,108 @@ impl<'a> Lexer<'a> {
             '&' if self.pick('&') => And,
             '|' if self.pick('|') => Or,
 
+            '{' => LBrace, '}' => RBrace,
+            '(' => LParen, ')' => RParen,
+            '[' => LBracket, ']' => RBracket,
+            ',' => Comma,
+            
+            '@' => At,
+            '"' | '\'' => self.string(),
+            x if is_ident_char(x, true) => self.identifier(),
+            n if is_digit(n) => self.number(false),
             x => Error(LexError::UnknownCharacter(x))
         };
         Some(Sp {
             line: self.line,
             col: self.col,
-            span: &self.prog[self.at - self.len..self.at],
+            span: self.lexeme(),
             data: token
         })
+    }
+
+    fn string(&mut self) -> Token<'a> {
+        let start_seq = self.lexeme();
+        loop {
+            self.advance();
+            let latest_seq = &self.prog.as_bytes()[self.at - start_seq.len()..self.at];
+            if latest_seq == start_seq.as_bytes() {
+                break;
+            }
+
+            if self.at_end() {
+                return Token::Error(LexError::UnterminatedString(start_seq.to_owned()));
+            }
+        }
+        let total = self.lexeme();
+        Token::String(&total[start_seq.len()..total.len() - start_seq.len()])
+    }
+
+    fn eat_until(&mut self, end_seq: &str, unterminated_err: LexError) -> Result<(), Token<'a>> {
+        loop {
+            self.advance();
+            let latest_seq = &self.prog.as_bytes()[self.at - end_seq.len()..self.at];
+            if latest_seq == end_seq.as_bytes() {
+                return Ok(());
+            }
+
+            if self.at_end() {
+                return Err(Token::Error(unterminated_err));
+            }
+        }
+    }
+
+    fn comment(&mut self, start_len: usize, ty: CommentType, end_seq: &str) -> Token<'a> {
+        self.eat_until(end_seq, LexError::UnterminatedComment(end_seq.to_owned()));
+        let l = self.lexeme();
+        Token::Comment(ty, &l[start_len..l.len()-end_seq.len()])
+    }
+
+    fn identifier(&mut self) -> Token<'a> {
+        while is_ident_char(self.peek(), false) {
+            self.advance();
+        }
+        let ident = self.lexeme();
+        use Token::*;
+        match ident {
+            "let" => Let,
+            "mut" => Mut,
+            "if" => If,
+            "else" => Else,
+            "fn" => Fn,
+            "for" => For,
+            "while" => While,
+            "loop" => Loop,
+            "break" => Break,
+            "continue" => Continue,
+            "return" => Return,
+            "enum" => Enum,
+            "struct" => Struct,
+            "pub" => Pub,
+            "import" => Import,
+            "match" => Match,
+            "default" => Default,
+            _ => Identifier(ident)
+        }
+    }
+
+    // dotted = whether the number started with a dot
+    fn number(&mut self, dotted: bool) -> Token<'a> {
+        if !dotted {
+            while is_digit(self.peek()) { self.advance(); }
+        }
+        if dotted || self.pick('.') {
+            while is_digit(self.peek()) { self.advance(); }
+            let Ok(parsed) = self.lexeme().parse::<f64>() else {
+                return Token::Error(LexError::NumberParseFailed)
+            };
+            Token::CompFloat(parsed)
+        } else {
+            let Ok(parsed) = self.lexeme().parse::<i64>() else {
+                return Token::Error(LexError::NumberParseFailed)
+            };
+            Token::CompInt(parsed)
+        }
+
     }
 
     fn eq_variant(&mut self, base: Token<'a>, with: Token<'a>) -> Token<'a> {
@@ -82,6 +197,10 @@ impl<'a> Lexer<'a> {
         if self.pick(with_ch) {
             with
         } else { base }
+    }
+
+    fn lexeme(&self) -> &'a str {
+        &self.prog[self.at - self.len..self.at]
     }
 
     fn skip_whitespace(&mut self) {
@@ -115,7 +234,7 @@ impl<'a> Lexer<'a> {
             }
             at = at.min(self.prog.len());
         }
-        (self.prog[char_start..at].chars().next().unwrap_or('\0'), char_start - self.at)
+        (self.prog[char_start..at].chars().next().unwrap_or('\0'), at - self.at)
     }
 
     fn peek_to(&self, n: usize) -> char {
@@ -128,7 +247,7 @@ impl<'a> Lexer<'a> {
     }
 
     fn advance(&mut self) -> char {
-        let (ch, dist) = self.peek_to_with_loc(1);
+        let (ch, dist) = self.peek_to_with_loc(0);
         self.at += dist;
         self.at_char += 1;
         self.col += 1;
