@@ -1,0 +1,45 @@
+import http.(App, Auth, Router)
+
+fn main() {
+    let name = "lawson"
+    print("hello! {name}")
+
+    // match expressions
+    // (with only ONE type of arrow :O)
+    print(match name {
+        "lawson" -> "you are really cool!",
+	other -> "{other} is really cool!"
+    })
+
+    // if expressions can be put pretty much
+    // anywhere
+    let condition = false
+    print(if condition { "yes" } else { "no" })
+
+    // unicode support
+    // but only alphanumeric characters
+    // also, the formatter will eventually support turning things like
+    // \pi into the actual π character.
+    let π = 3.14159
+    print("{π + 2} is two more than π")
+
+    let http = App.new()
+    let router = Router.new()
+        .route("/business-secrets", get_secrets)
+	.with(Auth.password);
+    http.nest("/secure", router)
+    
+    let production = true
+    if production {
+        http.listen(80)
+    } else {
+        // // overloading!
+        // // TODO: this doesn't exist yet!
+        //
+        // http.listen("localhost:8080")
+    }
+}
+
+fn get_secrets() {
+    return 42
+}
