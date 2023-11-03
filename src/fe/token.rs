@@ -1,3 +1,5 @@
+use super::lexer::LexError;
+
 #[derive(Debug)]
 pub enum CommentType {
     Regular,
@@ -25,6 +27,8 @@ pub enum Token<'a> {
     Mod, ModEq, // %
     Dot, // .
     Try, // ?
+    Not, // !
+    Assign, // =
 
     // Comparisons
     Eq, NotEq, // == / !=
@@ -45,6 +49,7 @@ pub enum Token<'a> {
     
     // Other
     At, // @
+    Arrow, // ->
 
     // Keywords
     Let,
@@ -64,4 +69,8 @@ pub enum Token<'a> {
     Pub,
     Match,
     Default,
+
+    // Internal
+    Error(LexError),
+    Nothing
 }
