@@ -106,17 +106,7 @@ impl<'a> Lexer<'a> {
 
     fn string(&mut self) -> Token<'a> {
         let start_seq = self.lexeme();
-        loop {
-            self.advance();
-            let latest_seq = &self.prog.as_bytes()[self.at - start_seq.len()..self.at];
-            if latest_seq == start_seq.as_bytes() {
-                break;
-            }
-
-            if self.at_end() {
-                return Token::Error(LexError::UnterminatedString(start_seq.to_owned()));
-            }
-        }
+        if let Err(e) = self.eat_until(start_seq, LexError::UnterminatedString(start_seq.to_owned())) { return e }
         let total = self.lexeme();
         Token::String(&total[start_seq.len()..total.len() - start_seq.len()])
     }
@@ -136,7 +126,7 @@ impl<'a> Lexer<'a> {
     }
 
     fn comment(&mut self, start_len: usize, ty: CommentType, end_seq: &str) -> Token<'a> {
-        self.eat_until(end_seq, LexError::UnterminatedComment(end_seq.to_owned()));
+        if let Err(e) = self.eat_until(end_seq, LexError::UnterminatedComment(end_seq.to_owned())) { return e }
         let l = self.lexeme();
         Token::Comment(ty, &l[start_len..l.len()-end_seq.len()])
     }
@@ -165,6 +155,11 @@ impl<'a> Lexer<'a> {
             "import" => Import,
             "match" => Match,
             "default" => Default,
+
+            "true" => True,
+            "false" => False,
+            "nil" => Nil,
+
             _ => Identifier(ident)
         }
     }

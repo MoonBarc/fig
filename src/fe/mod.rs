@@ -1,7 +1,9 @@
+//! The Frontend
 use std::{fmt::Debug, ops::{Deref, DerefMut}};
 
 pub mod token;
 pub mod lexer;
+pub mod ast;
 
 pub struct Sp<'a, T: Debug> {
     pub line: usize,

@@ -1,18 +1,12 @@
-use crate::fe::lexer::Lexer;
+use crate::fe::{lexer::Lexer, ast::TypeRegistry};
 
 mod fe;
+mod be;
 
 fn main() {
     let prog = include_str!("../example.fig");
+    let mut types = TypeRegistry::new();
     let mut lexer = Lexer::new(&prog);
-    
-    let mut tok;
-
-    loop {
-        tok = lexer.next();
-        let Some(tok) = tok else { break };
-        println!("{}@{}:{} -> {:?}", tok.span, tok.line, tok.col, &*tok)
-    }
 
     println!("o/");
 }

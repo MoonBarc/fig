@@ -70,6 +70,11 @@ pub enum Token<'a> {
     Match,
     Default,
 
+    // Keyword Values
+    Nil,
+    True,
+    False,
+
     // Internal
     Error(LexError),
     Nothing
