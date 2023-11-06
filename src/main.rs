@@ -1,4 +1,4 @@
-use crate::fe::{lexer::Lexer, ast::TypeRegistry};
+use crate::fe::{ast::TypeRegistry, parser::Parser};
 
 mod fe;
 mod be;
@@ -6,7 +6,9 @@ mod be;
 fn main() {
     let prog = include_str!("../example.fig");
     let mut types = TypeRegistry::new();
-    let mut lexer = Lexer::new(&prog);
+    let mut parser = Parser::new(prog);
+
+    // let mut ast = parser.parse(); 
 
     println!("o/");
 }

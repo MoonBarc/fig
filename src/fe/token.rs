@@ -1,4 +1,4 @@
-use super::lexer::LexError;
+use super::{lexer::LexError, Sp};
 
 #[derive(Debug)]
 pub enum CommentType {
@@ -46,7 +46,9 @@ pub enum Token<'a> {
     LBrace, RBrace, // {}
     LBracket, RBracket, // []
     Comma, // ,
-    
+    Semicolon, // ;
+    Newline, // Parser::advance deals with this for automatic semicolon insertion
+
     // Other
     At, // @
     Arrow, // ->
@@ -78,4 +80,41 @@ pub enum Token<'a> {
     // Internal
     Error(LexError),
     Nothing
+}
+
+impl Token<'_> {
+    pub(crate) fn nothing_span() -> Sp<'static, Self> {
+        Sp {
+            line: 0,
+            col: 0,
+            span: "nothing!",
+            data: Token::Nothing 
+        }
+    }
+
+    // TODO: Stuff for optional semicolons
+
+    pub fn is_value(&self) -> bool {
+        use Token::*;
+        match self {
+            CompInt(..) | CompFloat(..) | String(..) | Nil | True | False => true,
+            _ => false
+        }
+    }
+
+    pub fn can_end_stmt(&self) -> bool {
+        use Token::*;
+        match self {
+            Break | Continue | Return => true,
+            _ => self.is_value()
+        }
+    }
+
+    pub fn can_start_stmt(&self) -> bool {
+        todo!()
+    }
+
+    pub fn semicolon_inbetween(&self, next: &Self) -> bool {
+        self.can_end_stmt() && next.can_start_stmt()
+    }
 }

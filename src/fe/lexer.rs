@@ -23,7 +23,8 @@ pub struct Lexer<'a> {
     at_char: usize,
     line: usize,
     col: usize,
-    len: usize
+    len: usize,
+    semi_insert: bool
 }
 
 impl<'a> Lexer<'a> {
@@ -34,12 +35,15 @@ impl<'a> Lexer<'a> {
             at_char: 0,
             line: 1,
             col: 1,
-            len: 0
+            len: 0,
+            semi_insert: false
         }
     }
 
-    pub fn next(&mut self) -> Option<Sp<Token<'a>>> {
+    pub fn next(&mut self) -> Option<Sp<'a, Token<'a>>> {
         self.skip_whitespace();
+        self.semi_insert = false;
+
         self.len = 0;
         if self.at_end() { return None }
         use Token::*;
@@ -61,6 +65,8 @@ impl<'a> Lexer<'a> {
                 if self.pick('/') {
                     if self.pick('/') {
                         self.comment(3, CommentType::Doc, "\n")
+                    } else if self.pick('!') {
+                        self.comment(3, CommentType::ModuleDoc, "\n") 
                     } else {
                         self.comment(2, CommentType::Regular, "\n")
                     }
@@ -89,6 +95,8 @@ impl<'a> Lexer<'a> {
             '(' => LParen, ')' => RParen,
             '[' => LBracket, ']' => RBracket,
             ',' => Comma,
+            
+            '\n' => Newline,
             
             '@' => At,
             '"' | '\'' => self.string(),
@@ -135,6 +143,7 @@ impl<'a> Lexer<'a> {
         while is_ident_char(self.peek(), false) {
             self.advance();
         }
+
         let ident = self.lexeme();
         use Token::*;
         match ident {
@@ -146,9 +155,9 @@ impl<'a> Lexer<'a> {
             "for" => For,
             "while" => While,
             "loop" => Loop,
-            "break" => Break,
-            "continue" => Continue,
-            "return" => Return,
+            "break" => { self.semi_insert = true; Break },
+            "continue" => { self.semi_insert = true; Continue },
+            "return" => { self.semi_insert = true; Return },
             "enum" => Enum,
             "struct" => Struct,
             "pub" => Pub,
@@ -156,9 +165,9 @@ impl<'a> Lexer<'a> {
             "match" => Match,
             "default" => Default,
 
-            "true" => True,
-            "false" => False,
-            "nil" => Nil,
+            "true" => { self.semi_insert = true; True },
+            "false" => { self.semi_insert = true; False },
+            "nil" => { self.semi_insert = true; Nil },
 
             _ => Identifier(ident)
         }
@@ -198,13 +207,15 @@ impl<'a> Lexer<'a> {
         &self.prog[self.at - self.len..self.at]
     }
 
-    fn skip_whitespace(&mut self) {
+    fn skip_whitespace(&mut self) -> bool {
+        let mut last_was_newline = false;
         while !self.at_end() {
             match self.peek() {
-                ' ' | '\t' | '\n' => { self.advance(); },
-                _ => return
+                ' ' | '\t' => { self.advance(); last_was_newline = true; },
+                _ => return last_was_newline
             }
         }
+        false
     }
 
     fn pick(&mut self, ch: char) -> bool {

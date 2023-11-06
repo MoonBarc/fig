@@ -89,7 +89,6 @@ pub enum ConstantValue<'a> {
 #[derive(Debug)]
 pub enum AstNodeKind<'a> {
     Value(ConstantValue<'a>),
-    If
 }
 
 #[derive(Debug)]
