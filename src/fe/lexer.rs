@@ -1,3 +1,5 @@
+use std::ops::Range;
+
 use super::{token::{Token, CommentType}, Sp};
 
 #[derive(Debug)]
@@ -18,7 +20,7 @@ fn is_digit(ch: char) -> bool {
 }
 
 pub struct Lexer<'a> {
-    prog: &'a str,
+    pub prog: &'a str,
     at: usize,
     at_char: usize,
     line: usize,
@@ -107,7 +109,8 @@ impl<'a> Lexer<'a> {
         Some(Sp {
             line: self.line,
             col: self.col,
-            span: self.lexeme(),
+            of: self.prog, 
+            span: self.lexeme_range(),
             data: token
         })
     }
@@ -204,7 +207,11 @@ impl<'a> Lexer<'a> {
     }
 
     fn lexeme(&self) -> &'a str {
-        &self.prog[self.at - self.len..self.at]
+        &self.prog[self.lexeme_range()]
+    }
+
+    fn lexeme_range(&self) -> Range<usize> {
+        self.at - self.len..self.at
     }
 
     fn skip_whitespace(&mut self) -> bool {

@@ -46,6 +46,7 @@ pub enum Token<'a> {
     LBrace, RBrace, // {}
     LBracket, RBracket, // []
     Comma, // ,
+    // TODO: automatic semicolon insertion
     Semicolon, // ;
     Newline, // Parser::advance deals with this for automatic semicolon insertion
 
@@ -84,10 +85,12 @@ pub enum Token<'a> {
 
 impl Token<'_> {
     pub(crate) fn nothing_span() -> Sp<'static, Self> {
+        let eof = "<eof>";
         Sp {
             line: 0,
             col: 0,
-            span: "nothing!",
+            span: 0..eof.len(),
+            of: eof,
             data: Token::Nothing 
         }
     }
@@ -116,5 +119,22 @@ impl Token<'_> {
 
     pub fn semicolon_inbetween(&self, next: &Self) -> bool {
         self.can_end_stmt() && next.can_start_stmt()
+    }
+
+    pub fn get_precedence(&self) -> u8 {
+        use Token::*;
+        use super::parser::prec;
+        match self {
+            Assign | AddEq | SubEq | MulEq | DivEq | PowEq | ModEq => prec::ASSIGN,
+            Or => prec::OR,
+            And => prec::AND,
+            Gt | GtEq | Lt | LtEq => prec::COMP,
+            Add | Sub => prec::TERM,
+            Mul | Div | Mod => prec::FACTOR,
+            Pow => prec::POW,
+            Not => prec::UNARY, // NOTE: `-` is handled by TERM above
+            LParen | Dot => prec::CALL,
+            _ => prec::NONE
+        }
     }
 }

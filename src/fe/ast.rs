@@ -1,5 +1,7 @@
 use std::collections::HashMap;
 
+use super::Sp;
+
 pub struct TypeRegistry<'tr> {
     pub data: HashMap<String, Type<'tr>>,
 }
@@ -83,19 +85,79 @@ pub enum ConstantValue<'a> {
     String(&'a str),
     CompInt(CompInt),
     CompFloat(CompFloat),
-    Bool(bool)
+    Bool(bool),
+    Nil
+}
+
+#[derive(Debug, Clone)]
+pub enum BinOp {
+    Assign,
+
+    Add, AddEq,
+    Sub, SubEq,
+    Mul, MulEq,
+    Div, DivEq,
+    Pow, PowEq,
+    Mod, ModEq,
+
+    Eq, NotEq,
+
+    Gt, GtEq,
+    Lt, LtEq,
+    
+    And, Or
+}
+
+#[derive(Debug, Clone)]
+pub enum UnOp {
+    // prefix
+    Negate,
+    Not,
+    
+    // postfix
+    Try
 }
 
 #[derive(Debug)]
-pub enum AstNodeKind<'a> {
+pub enum AstNodeKind<'a, 'tr> {
     Value(ConstantValue<'a>),
+    BinOp {
+        a: AstNode<'a, 'tr>,
+        b: AstNode<'a, 'tr>,
+        op: Sp<'a, BinOp>
+    },
+    UnOp {
+        op: Sp<'a, UnOp>,
+        target: AstNode<'a, 'tr>
+    },
+    Error
 }
 
-#[derive(Debug)]
-pub struct AstNode<'a, 'tr> {
-    pub kind: AstNodeKind<'a>,
-    pub type_data: Option<&'tr Type<'tr>>,
+impl<'a, 'tr> AstNodeKind<'a, 'tr> {
+    pub fn get_start_end(&self) -> Option<(Sp<'a, ()>, Sp<'a, ()>)> {
+        Some(match self {
+            Self::BinOp { a, b, .. } => (a.ditch(), b.ditch()),
+            Self::UnOp { op, target } => (op.ditch(), target.ditch()),
+            _ => return None
+        })
+    }
+}
 
+pub type AstNode<'a, 'tr> = Sp<'a, RawAstNode<'a, 'tr>>;
+
+#[derive(Debug)]
+pub struct RawAstNode<'a, 'tr> {
+    pub kind: Box<AstNodeKind<'a, 'tr>>,
+    pub type_data: Option<&'tr Type<'tr>>,
+}
+
+impl<'a, 'tr> RawAstNode<'a, 'tr> {
+    pub fn new(kind: AstNodeKind<'a, 'tr>) -> Self {
+        Self {
+            kind: Box::new(kind),
+            type_data: None
+        } 
+    }
 }
 
 #[derive(Debug)]
@@ -105,14 +167,63 @@ pub enum ImportElement<'a> {
 }
 
 #[derive(Debug)]
+pub enum MaybeTyped<'a, 'tr> {
+    NotTyped,
+    TypeProvided(&'a str),
+    TypeResolved(&'tr Type<'tr>)
+}
+
+impl<'a, 'tr> MaybeTyped<'a, 'tr> {
+    pub fn unwrap_type(self) -> &'tr Type<'tr> {
+        match self {
+            Self::TypeResolved(r) => return r,
+            _ => panic!("tried to unwrap type but got {:?}", self)
+        }
+    }
+
+    pub fn unwrap_type_str(self) -> &'a str {
+        match self {
+            Self::TypeProvided(r) => return r,
+            _ => panic!("tried to unwrap type str but got {:?}", self)
+        }
+    }
+}
+
+#[derive(Debug)]
 pub enum Statement<'a, 'tr> {
     Declare {
         id: &'a str,
-        with_type: Option<&'a str>,
+        with_type: MaybeTyped<'a, 'tr>,
         value: AstNode<'a, 'tr>
     },
     Expression(AstNode<'a, 'tr>),
     Import {
         paths: ImportElement<'a>
+    }
+}
+
+/// The *Beeg* Space String Function®
+fn beegstr(len: u16) -> String {
+    let mut s = String::with_capacity(len as usize);
+    for _ in 0..len {
+        s.push(' ');
+    }
+    s
+}
+
+pub fn print_tree(depth: u16, label: &str, node: &AstNode) {
+    let s = format!("{}{}: ", beegstr(depth), label);
+    match &*node.kind {
+        AstNodeKind::BinOp { a, b, op } => {
+            println!("{}BinOp({:?})", s, **op);
+            print_tree(depth + 1, "a", &a);
+            print_tree(depth + 1, "b", &b);
+        },
+        AstNodeKind::Value(v) => { println!("{}Value({:?})", s, v) },
+        AstNodeKind::UnOp { op, target } => {
+            println!("{}UnOp({:?})", s, **op);
+            print_tree(depth + 1, "t", &target);
+        }
+        _ => println!("unknown")
     }
 }

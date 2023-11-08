@@ -1,7 +1,5 @@
 //! The Frontend
-use std::{fmt::Debug, ops::{Deref, DerefMut}};
-
-use self::ast::AstNode;
+use std::{fmt::Debug, ops::{Deref, DerefMut, Range}};
 
 pub mod token;
 pub mod lexer;
@@ -12,8 +10,26 @@ pub mod parser;
 pub struct Sp<'a, T: Debug> {
     pub line: usize,
     pub col: usize,
-    pub span: &'a str,
+    pub span: Range<usize>,
+    pub of: &'a str,
     pub data: T
+}
+
+impl<'a, T: Debug> Sp<'a, T> {
+    pub fn map<O: Debug>(&self, map_fn: impl FnOnce(&T) -> O) -> Sp<'a, O> {
+        let d = map_fn(&self.data);
+        Sp {
+            data: d,
+            line: self.line,
+            col: self.col,
+            span: self.span.clone(),
+            of: self.of,
+        }
+    }
+
+    pub fn ditch(&self) -> Sp<'a, ()> {
+        self.map(|_| ())
+    }
 }
 
 impl<T> Deref for Sp<'_, T> where T: Debug {
@@ -30,8 +46,8 @@ impl<T> DerefMut for Sp<'_, T> where T: Debug {
     }
 }
 
-pub struct CompileError<'c, 'a, 'tr> {
-    // this is the uglest abomination i've ever seen
-    span: Sp<'a, &'c AstNode<'a, 'tr>>,
+#[derive(Debug)]
+pub struct CompileError<'a> {
+    span: &'a str,
     message: String
 }
