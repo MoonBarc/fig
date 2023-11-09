@@ -98,7 +98,7 @@ impl<'a> Lexer<'a> {
             '[' => LBracket, ']' => RBracket,
             ',' => Comma,
             
-            '\n' => Newline,
+            // '\n' => Newline,
             
             '@' => At,
             '"' | '\'' => self.string(),
@@ -214,15 +214,13 @@ impl<'a> Lexer<'a> {
         self.at - self.len..self.at
     }
 
-    fn skip_whitespace(&mut self) -> bool {
-        let mut last_was_newline = false;
+    fn skip_whitespace(&mut self) {
         while !self.at_end() {
             match self.peek() {
-                ' ' | '\t' => { self.advance(); last_was_newline = true; },
-                _ => return last_was_newline
+                ' ' | '\t' | '\n' => { self.advance(); },
+                _ => return
             }
         }
-        false
     }
 
     fn pick(&mut self, ch: char) -> bool {

@@ -1,6 +1,6 @@
 use std::mem;
 
-use super::{token::Token, Sp, lexer::Lexer, ast::{self, AstNodeKind, RawAstNode, UnOp}, CompileError};
+use super::{token::Token, Sp, lexer::Lexer, ast::{self, AstNodeKind, RawAstNode, UnOp, Statement, ImportElement}, CompileError};
 
 pub struct Parser<'a> {
     lexer: Lexer<'a>,
@@ -51,13 +51,66 @@ impl<'a> Parser<'a> {
         } 
     }
 
-    // pub fn parse(self) -> Vec<Statement> {
-    //     
-    // }
+    pub fn parse(mut self) -> (Vec<Statement<'a, 'static>>, Vec<CompileError<'a>>) {
+        let mut stmts = vec![];
+        while !self.pick(Token::Nothing) {
+            let stmt = if self.pick(Token::Import) {
+                self.import()
+            } else if self.pick(Token::Let) {
+                self.decl()
+            } else {
+                Statement::Expression(self.parse_with_prec(prec::PRIMARY))
+            };
+            stmts.push(stmt);
+        }
+        (stmts, self.errors)
+    }
     
     pub fn parse_expr(mut self) -> (AstNode<'a>, Vec<CompileError<'a>>) {
         let thing = self.parse_with_prec(prec::PRIMARY);
         (thing, self.errors)
+    }
+
+    fn decl(&mut self) -> Statement<'a, 'static> {
+        todo!(); // TODO: implement let declarations
+    }
+
+    fn import(&mut self) -> Statement<'a, 'static> {
+        let root = self.import_elem();
+        Statement::Import {
+            paths: root
+        }
+    }
+
+    fn import_elem(&mut self) -> Vec<ImportElement<'a>> {
+        match self.advance() {
+            Token::Identifier(id) => {
+                let id = *id;
+                if self.pick(Token::Dot) {
+                    vec![ImportElement::Access(id, self.import_elem())]
+                } else {
+                    vec![ImportElement::Item(id)]
+                }
+            },
+            Token::LParen => {
+                let mut elems = vec![];
+                loop {
+                    if matches!(*self.next, Token::RParen) { break }
+                    let mut elem = self.import_elem();
+                    elems.append(&mut elem);
+                    if !self.pick(Token::Comma) { break }
+                }
+                if !self.pick(Token::RParen) {
+                    self.error("expected a closing `)` for import statement group");
+                    return vec![]
+                }
+                elems
+            },
+            _ => {
+                self.error("expected an identifier or `(` for import statement");
+                vec![]
+            }
+        }
     }
 
     fn parse_with_prec(&mut self, prec: u8) -> AstNode<'a> {
@@ -92,7 +145,7 @@ impl<'a> Parser<'a> {
         });
         let target = self.parse_with_prec(prec - 1);
         self.sp(AstNodeKind::UnOp {
-            op,
+            op ,
             target 
         })
     }

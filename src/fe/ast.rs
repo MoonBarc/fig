@@ -163,7 +163,7 @@ impl<'a, 'tr> RawAstNode<'a, 'tr> {
 #[derive(Debug)]
 pub enum ImportElement<'a> {
     Item(&'a str),
-    Access(Vec<ImportElement<'a>>),
+    Access(&'a str, Vec<ImportElement<'a>>),
 }
 
 #[derive(Debug)]
@@ -198,7 +198,7 @@ pub enum Statement<'a, 'tr> {
     },
     Expression(AstNode<'a, 'tr>),
     Import {
-        paths: ImportElement<'a>
+        paths: Vec<ImportElement<'a>>
     }
 }
 
@@ -225,5 +225,24 @@ pub fn print_tree(depth: u16, label: &str, node: &AstNode) {
             print_tree(depth + 1, "t", &target);
         }
         _ => println!("unknown")
+    }
+}
+
+pub fn print_statements(depth: u16, stmts: &Vec<Statement>) {
+    let s = beegstr(depth);
+    for stmt in stmts {
+        match stmt {
+            Statement::Declare { id, with_type, value } => {
+                println!("{}Declare {}: {:?}", s, id, with_type);
+                print_tree(depth + 1, "value", &value);
+            },
+            Statement::Expression(e) => {
+                println!("{}Expression", s);
+                print_tree(depth + 1, "e", &e);
+            },
+            Statement::Import { paths } => {
+                println!("{}Import {:?}", s, paths);
+            },
+        }
     }
 }
