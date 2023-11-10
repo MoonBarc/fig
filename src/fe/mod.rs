@@ -5,6 +5,8 @@ pub mod token;
 pub mod lexer;
 pub mod ast;
 pub mod parser;
+pub mod types;
+pub mod symbols;
 
 #[derive(Debug)]
 pub struct Sp<'a, T: Debug> {
@@ -29,6 +31,18 @@ impl<'a, T: Debug> Sp<'a, T> {
 
     pub fn ditch(&self) -> Sp<'a, ()> {
         self.map(|_| ())
+    }
+
+    pub fn builtin(t: T) -> Sp<'static, T> {
+        let d = "<builtin>";
+        Sp {
+            line: 0,
+            col: 0,
+            span: 0..d.len(),
+            of: d,
+            data: t
+        }
+
     }
 }
 

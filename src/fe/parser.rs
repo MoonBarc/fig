@@ -1,6 +1,6 @@
 use std::mem;
 
-use super::{token::Token, Sp, lexer::Lexer, ast::{self, AstNodeKind, RawAstNode, UnOp, Statement, ImportElement}, CompileError};
+use super::{token::Token, Sp, lexer::Lexer, ast::{self, AstNodeKind, RawAstNode, UnOp, Statement, ImportElement, AstNode}, CompileError};
 
 pub struct Parser<'a> {
     lexer: Lexer<'a>,
@@ -19,9 +19,6 @@ macro_rules! precs {
         }
     };
 }
-
-// all AstNodes made in the parser do not reference the type registry, hence the 'static
-pub type AstNode<'a> = ast::AstNode<'a, 'static>;
 
 precs!(
     NONE: 0,
@@ -51,7 +48,7 @@ impl<'a> Parser<'a> {
         } 
     }
 
-    pub fn parse(mut self) -> (Vec<Statement<'a, 'static>>, Vec<CompileError<'a>>) {
+    pub fn parse(mut self) -> (Vec<Statement<'a>>, Vec<CompileError<'a>>) {
         let mut stmts = vec![];
         while !self.pick(Token::Nothing) {
             let stmt = if self.pick(Token::Import) {
@@ -71,11 +68,11 @@ impl<'a> Parser<'a> {
         (thing, self.errors)
     }
 
-    fn decl(&mut self) -> Statement<'a, 'static> {
+    fn decl(&mut self) -> Statement<'a> {
         todo!(); // TODO: implement let declarations
     }
 
-    fn import(&mut self) -> Statement<'a, 'static> {
+    fn import(&mut self) -> Statement<'a> {
         let root = self.import_elem();
         Statement::Import {
             paths: root
@@ -207,7 +204,7 @@ impl<'a> Parser<'a> {
     
     // -- Utility Functions --
 
-    fn sp(&mut self, node: AstNodeKind<'a, 'static>) -> AstNode<'a> {
+    fn sp(&mut self, node: AstNodeKind<'a>) -> AstNode<'a> {
         let data = RawAstNode::new(node);
         if let Some((start, end)) = data.kind.get_start_end() {
             return Sp {

@@ -26,7 +26,7 @@ fn main() {
     let http = App.new()
     let router = Router.new()
         .route("/business-secrets", get_secrets)
-	.with(Auth.password);
+	.with(Auth.Password("tuplestruct"));
     http.nest("/secure", router)
     
     let production = true
@@ -34,12 +34,10 @@ fn main() {
         http.listen(80)
     } else {
         // // overloading!
-        // // TODO: this doesn't exist yet!
+        // // NOTE: this is a stretch goal
         //
         // http.listen("localhost:8080")
     }
 }
 
-fn get_secrets() {
-    return 42
-}
+fn get_secrets() -> 42
