@@ -10,19 +10,23 @@ pub enum IrOperand {
 
 #[derive(Debug)]
 pub enum IrOpKind {
+    /// x = (op1)
+    Set(IrOperand),
+    /// x = (op1+op2)
     Add(IrOperand, IrOperand),
+    /// () = ret op1
     Ret(IrOperand),
 }
 
 #[derive(Debug)]
 pub struct IrOp {
-    kind: IrOpKind,
-    result_into: Option<usize>
+    pub kind: IrOpKind,
+    pub result_into: Option<usize>
 }
 
 #[derive(Debug)]
 pub struct IrBlock {
-    ops: Vec<IrOp>
+    pub ops: Vec<IrOp>
 }
 
 impl IrBlock {

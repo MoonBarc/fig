@@ -1,4 +1,4 @@
-use crate::{fe::{ast::{print_statements, print_tree}, symbols::SymbolTable, parser::Parser, types}, be::{irgen::IrGen, ir::IrBlock}};
+use crate::{fe::{ast::{print_statements, print_tree}, symbols::SymbolTable, parser::Parser, types}, be::{irgen::IrGen, ir::IrBlock, consts::ConstsTable}};
 
 mod fe;
 mod be;
@@ -6,6 +6,7 @@ mod be;
 fn main() {
     let prog = include_str!("../expr.fig");
     let mut syms = SymbolTable::new();
+    let mut consts = ConstsTable::new();
     let mut parser = Parser::new(prog);
 
     let (mut ast, errs) = parser.parse_expr();
@@ -17,7 +18,7 @@ fn main() {
 
     let mut generator = IrGen::new();
     let mut block = IrBlock::new();
-    generator.gen_code(&syms, &mut block, &ast);
+    generator.gen_code(&mut consts, &syms, &mut block, ast);
 
     println!("o/");
 }
