@@ -2,7 +2,7 @@
 
 use crate::fe::{ast::{AstNode, AstNodeKind}, symbols::SymbolTable};
 
-use super::{ir::*, consts::ConstsTable};
+use super::{ir::*, consts::ConstTable};
 
 // generates SSA IR
 pub struct IrGen {
@@ -19,7 +19,7 @@ impl IrGen {
     /// generates code to evaluate the provided node and returns the ssa id of the result
     pub fn gen_code<'a>(
         &mut self,
-        consts: &mut ConstsTable<'a>,
+        consts: &mut ConstTable<'a>,
         sym_table: &SymbolTable<'a>,
         target: &mut IrBlock,
         ast: AstNode<'a>

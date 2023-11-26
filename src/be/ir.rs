@@ -16,6 +16,11 @@ pub enum IrOpKind {
     Add(IrOperand, IrOperand),
     /// () = ret op1
     Ret(IrOperand),
+    Jump(usize),
+    JumpNe(usize, IrOperand, IrOperand),
+    JumpEq(usize, IrOperand, IrOperand),
+    JumpLz(usize, IrOperand),
+    JumpGz(usize, IrOperand),
 }
 
 #[derive(Debug)]

@@ -1,24 +1,26 @@
 use std::io::{Write, BufWriter};
 
-use crate::be::ir::{IrBlock, IrOpKind, IrOperand};
+use crate::be::{ir::{IrBlock, IrOpKind, IrOperand}, consts::ConstTable, CompUnit};
 
-pub struct Arm64Generator<T: Write> {
+pub struct Arm64Generator<'a, T: Write> {
     next_block_id: usize,
-    output: BufWriter<T>
+    output: BufWriter<T>,
+    unit: CompUnit<'a>
 }
 
-impl<T: Write> Arm64Generator<T> {
-    pub fn new(wr: T) -> Self {
+impl<'a, T: Write> Arm64Generator<'a, T> {
+    pub fn new(wr: T, unit: CompUnit<'a>) -> Self {
         let mut s = Self {
             next_block_id: 0,
-            output: BufWriter::new(wr)
+            output: BufWriter::new(wr),
+            unit
         };
         s.header();
         s
     }
 
-    pub fn gen(&mut self, block: &IrBlock) {
-        for instr in &block.ops {
+    pub fn gen(&mut self, entry: &IrBlock) {
+        for instr in &entry.ops {
             match &instr.kind {
                 IrOpKind::Set(to_load) => {
                     match to_load {
@@ -28,6 +30,7 @@ impl<T: Write> Arm64Generator<T> {
                 },
                 IrOpKind::Add(_, _) => todo!(),
                 IrOpKind::Ret(_) => todo!(),
+                _ => todo!()
             }
         }
     }
