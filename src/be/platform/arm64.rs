@@ -26,6 +26,7 @@ impl<'a, T: Write> Arm64Generator<'a, T> {
                     match to_load {
                         IrOperand::Constant(c) => todo!(),
                         IrOperand::Reference(_) => todo!(),
+                        IrOperand::Temporary(_) => todo!(),
                     }
                 },
                 IrOpKind::Add(_, _) => todo!(),

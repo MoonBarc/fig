@@ -1,14 +1,13 @@
 use crate::fe::ast::ConstantValue;
 
+#[derive(Debug)]
 pub struct ConstTable<'a> {
-    next_id: usize,
     pub consts: Vec<ConstantValue<'a>>
 }
 
 impl<'a> ConstTable<'a> {
     pub fn new() -> Self {
         Self {
-            next_id: 0,
             consts: vec![]
         }
     }

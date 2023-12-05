@@ -1,18 +1,18 @@
-//! The IR Generator
+//! The HLIR (high level intermediate representation) Generator
 
-use crate::fe::{ast::{AstNode, AstNodeKind}, symbols::SymbolTable};
+use crate::fe::{ast::{AstNode, AstNodeKind, BinOp, UnOp}, symbols::SymbolTable};
 
 use super::{ir::*, consts::ConstTable};
 
-// generates SSA IR
+/// generates three address code
 pub struct IrGen {
-    ssa_next_id: usize
+    next_temp: usize
 }
 
 impl IrGen {
     pub fn new() -> Self {
         Self {
-            ssa_next_id: 0
+            next_temp: 0
         }
     }
 
@@ -23,27 +23,63 @@ impl IrGen {
         sym_table: &SymbolTable<'a>,
         target: &mut IrBlock,
         ast: AstNode<'a>
-    ) -> usize {
+    ) -> IrOperand {
         let n = *ast.data.kind;
         match n {
             AstNodeKind::Value(v) => {
                 let constant = consts.add(v);
-                let out_id = self.allocate_id();
+                let out_id = self.allocate_temp();
                 target.ops.push(IrOp {
                     kind: IrOpKind::Set(IrOperand::Constant(constant)),
-                    result_into: Some(out_id)
+                    result_into: Some(out_id.clone())
                 });
                 out_id
             },
-            AstNodeKind::BinOp { a, b, op } => todo!(),
-            AstNodeKind::UnOp { op, target } => todo!(),
-            AstNodeKind::Error => todo!(),
+            AstNodeKind::BinOp { a, b, op } => {
+                let a = self.gen_code(consts, sym_table, target, a);
+                let b = self.gen_code(consts, sym_table, target, b);
+                let out_id = self.allocate_temp();
+
+                use IrOpKind::*;
+                target.ops.push(IrOp {
+                    kind: match *op {
+                        BinOp::Add => Add(a, b),
+                        BinOp::Sub => Sub(a, b),
+                        BinOp::Mul => Mul(a, b),
+                        BinOp::Div => Div(a, b),
+                        _ => todo!("many primitive binops are missing at the moment!")
+                    },
+                    result_into: Some(out_id.clone())
+                });
+
+                out_id
+            },
+            AstNodeKind::UnOp { op, target: t } => {
+                let target_done = self.gen_code(consts, sym_table, target, t);
+                let out_id = self.allocate_temp();
+
+                use IrOpKind::*;
+                target.ops.push(IrOp {
+                    kind: match *op {
+                        UnOp::Negate => Neg(target_done),
+                        _ => todo!("the other primitive unops aren't working yet!")
+                    },
+                    result_into: Some(out_id.clone())
+                });
+
+                out_id
+            },
+            AstNodeKind::Error => panic!("tried to generate code from a faulty AST"),
         }
     }
 
-    fn allocate_id(&mut self) -> usize {
-        let i = self.ssa_next_id;
-        self.ssa_next_id += 1;
+    fn allocate_temp(&mut self) -> IrOperand {
+        IrOperand::Temporary(self.allocate_temp_id())
+    }
+
+    fn allocate_temp_id(&mut self) -> usize {
+        let i = self.next_temp;
+        self.next_temp += 1;
         i
     }
 }

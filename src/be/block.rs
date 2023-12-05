@@ -1,5 +1,5 @@
 //! Utilities and algorithms for working with blocks
-use std::mem;
+use std::{mem, rc::Rc};
 
 use super::ir::{IrBlock, IrOpKind};
 
@@ -7,8 +7,8 @@ use super::ir::{IrBlock, IrOpKind};
 /// A leaf will have neither and represents a return (or some other halting)
 #[derive(Debug, Default)]
 pub struct CfgNode {
-    diverge: Option<usize>,
-    flow: Option<usize>
+    diverge: Option<Rc<CfgNode>>,
+    flow: Option<Rc<CfgNode>>
 }
 
 impl CfgNode {
@@ -30,7 +30,6 @@ impl Cfg {
 /// driven by a [Control Flow Graph](Cfg)
 pub fn break_down(block: IrBlock) -> (Vec<IrBlock>, Cfg) {
     let mut blocks = vec![];
-    let mut b = IrBlock::new();
     // TODO: the actual CFG
     let cfg = Cfg::new();
     let mut starts = Vec::new();
@@ -46,12 +45,17 @@ pub fn break_down(block: IrBlock) -> (Vec<IrBlock>, Cfg) {
             _ => {}
         }
     }
+    let mut diverge: Option<()> = None;
+    let mut flow: Option<()> = None;
+    let mut b = IrBlock::new();
     for (i, instr) in block.ops.into_iter().enumerate() {
         if starts.contains(&i) {
             // move on to the next block
             let mut new_block = IrBlock::new();
             mem::swap(&mut b, &mut new_block);
             blocks.push(new_block);
+            diverge = None;
+            flow = None;
         }
 
         b.ops.push(instr);

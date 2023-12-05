@@ -1,6 +1,6 @@
 //! The Backend
 
-use self::{consts::ConstTable, ir::IrBlock};
+use self::consts::ConstTable;
 
 pub mod ir;
 pub mod irgen;

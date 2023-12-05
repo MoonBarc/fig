@@ -1,7 +1,7 @@
-use super::{ast::{ConstantValue, AstNodeKind, AstNode, CompFloat, CompInt}, CompileError, symbols::{SymbolTable, PrimitiveType}};
+use super::{ast::{ConstantValue, AstNodeKind, AstNode, CompFloat, CompInt, BinOp}, CompileError, symbols::{SymbolTable, PrimitiveType}};
 
 pub fn type_check<'a, 'sy>(symbols: &SymbolTable<'a>, ast: &mut AstNode<'a>) -> Vec<CompileError<'a>> {
-    let errors = vec![];
+    let mut errors = vec![];
 
     ast.type_data = Some(match &mut *ast.kind {
         AstNodeKind::Value(v) => match v {
@@ -27,9 +27,23 @@ pub fn type_check<'a, 'sy>(symbols: &SymbolTable<'a>, ast: &mut AstNode<'a>) -> 
             ConstantValue::Nil => todo!("sum types and lang items"),
         },
         AstNodeKind::BinOp { a, b, op } => {
-            todo!("binop sem analysis")
+            errors.append(&mut type_check(symbols, a));
+            errors.append(&mut type_check(symbols, b));
+            match **op {
+                BinOp::Add | BinOp::Sub | BinOp::Mul | BinOp::Div => {
+                    // HACK: this assumes that everything is a number
+                    if a.type_data != b.type_data {
+                        todo!("error handling");
+                    };
+                    a.type_data.unwrap()
+                },
+                _ => todo!("binop semantic analysis is not fully implemented")
+            }
         },
-        AstNodeKind::UnOp { op, target } => todo!(),
+        AstNodeKind::UnOp { op, target } => {
+            errors.append(&mut type_check(symbols, target));
+            todo!("todo=unop")
+        },
         AstNodeKind::Error => todo!(),
     });
 

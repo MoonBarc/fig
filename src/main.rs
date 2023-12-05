@@ -22,7 +22,10 @@ fn main() {
 
     let mut generator = IrGen::new();
     let mut block = IrBlock::new();
-    generator.gen_code(&mut consts, &syms, &mut block, ast);
+    let out = generator.gen_code(&mut consts, &syms, &mut block, ast);
+    println!("{:#?}", &consts);
+    block.print();
+    println!("return val in {:?}", out);
 
     println!("o/");
 }
