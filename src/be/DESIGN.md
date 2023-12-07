@@ -7,7 +7,7 @@ The backend takes in an AST and Symbol Table.
  - Performing control flow analysis with those basic blocks
  - Converting three address code into SSA
  - Optimize!
- - Convert SSA into assembly
+ - [**DONE**] Convert SSA into assembly
  - Peephole optimization
- - Invoking the linker
+ - Invoking the linker (*manual right now*)
 

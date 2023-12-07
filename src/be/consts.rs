@@ -2,13 +2,16 @@ use crate::fe::ast::ConstantValue;
 
 #[derive(Debug)]
 pub struct ConstTable<'a> {
-    pub consts: Vec<ConstantValue<'a>>
+    pub consts: Vec<ConstantValue<'a>>,
+    pub const_names: Vec<String>,
 }
 
 impl<'a> ConstTable<'a> {
     pub fn new() -> Self {
         Self {
-            consts: vec![]
+            consts: vec![],
+            // populated later
+            const_names: vec![]
         }
     }
 

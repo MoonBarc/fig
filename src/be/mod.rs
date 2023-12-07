@@ -17,7 +17,7 @@ pub enum Item {
 }
 
 pub struct CompUnit<'a>{
-    prog: &'a str,
-    consts: ConstTable<'a>,
-    items: Vec<Item>
+    pub prog: &'a str,
+    pub consts: ConstTable<'a>,
+    pub items: Vec<Item>
 }
