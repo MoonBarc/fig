@@ -56,7 +56,7 @@ impl<'a> Parser<'a> {
             } else if self.pick(Token::Let) {
                 self.decl()
             } else {
-                Statement::Expression(self.parse_with_prec(prec::PRIMARY))
+                Statement::Expression(self.top_parse())
             };
             stmts.push(stmt);
         }
@@ -64,7 +64,7 @@ impl<'a> Parser<'a> {
     }
     
     pub fn parse_expr(mut self) -> (AstNode<'a>, Vec<CompileError<'a>>) {
-        let thing = self.parse_with_prec(prec::PRIMARY);
+        let thing = self.top_parse();
         (thing, self.errors)
     }
 
@@ -110,6 +110,10 @@ impl<'a> Parser<'a> {
         }
     }
 
+    fn top_parse(&mut self) -> AstNode<'a> {
+        self.parse_with_prec(prec::ASSIGN)
+    }
+
     fn parse_with_prec(&mut self, prec: u8) -> AstNode<'a> {
         use Token::*;
         let mut node = match self.advance() {
@@ -122,11 +126,11 @@ impl<'a> Parser<'a> {
 
         while {
             let nprec = self.next.get_precedence();
-            nprec > prec::NONE && prec > nprec
+            prec <= nprec
         } {
             node = match self.advance() {
                 Add | AddEq | Sub | SubEq | Mul | MulEq | Div | DivEq
-                    | Pow | PowEq | Mod | ModEq => self.binary(node, prec),
+                    | Pow | PowEq | Mod | ModEq => self.binary(node, self.current.get_precedence() + 1),
                 x => panic!("{:#?} has precedence but no associated infix operation", x)
             };
         }
@@ -140,7 +144,7 @@ impl<'a> Parser<'a> {
             Token::Sub => UnOp::Negate,
             _ => todo!("thought it was a unop but it wasn't ({:#?})", d)
         });
-        let target = self.parse_with_prec(prec - 1);
+        let target = self.parse_with_prec(prec);
         self.sp(AstNodeKind::UnOp {
             op ,
             target 
@@ -162,7 +166,7 @@ impl<'a> Parser<'a> {
     }
     
     fn group(&mut self) -> AstNode<'a> {
-        let n = self.parse_with_prec(prec::PRIMARY);
+        let n = self.parse_with_prec(prec::ASSIGN);
         if !self.pick(Token::RParen) {
             return self.error("expected `)` to end group")
         };
@@ -197,7 +201,7 @@ impl<'a> Parser<'a> {
             And, Or
         ));
 
-        let rhs = self.parse_with_prec(prec - 1);
+        let rhs = self.parse_with_prec(prec);
 
         self.sp(AstNodeKind::BinOp { a: lhs, b: rhs, op })
     }
