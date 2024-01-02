@@ -151,6 +151,11 @@ impl<'a, T: Write> Arm64Generator<'a, T> {
                     };
                     self.instr(&format!("{} x{}, x{}, x{}", iname, out, a, b));
                 },
+                Neg(i) => {
+                    let x = self.get_reg_for_op(i);
+                    let out = self.get_reg_for_op(&instr.result_into.clone().unwrap());
+                    self.instr(&format!("neg x{}, x{}", out, x));
+                }
                 Ret(i) => {
                     let x0 = self.get_reg_for_op(i);
                     self.instr(&format!("mov x0, x{}", x0));

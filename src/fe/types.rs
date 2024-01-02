@@ -1,4 +1,6 @@
-use super::{ast::{ConstantValue, AstNodeKind, AstNode, CompFloat, CompInt, BinOp}, CompileError, symbols::{SymbolTable, PrimitiveType}};
+use crate::fe::ast::UnOp;
+use crate::fe::symbols::TypeProps;
+use super::{ast::{ConstantValue, AstNodeKind, AstNode, CompFloat, CompInt, BinOp}, CompileError, Sp, symbols::{SymbolTable, PrimitiveType}};
 
 pub fn type_check<'a, 'sy>(symbols: &SymbolTable<'a>, ast: &mut AstNode<'a>) -> Vec<CompileError<'a>> {
     let mut errors = vec![];
@@ -33,7 +35,7 @@ pub fn type_check<'a, 'sy>(symbols: &SymbolTable<'a>, ast: &mut AstNode<'a>) -> 
                 BinOp::Add | BinOp::Sub | BinOp::Mul | BinOp::Div => {
                     // HACK: this assumes that everything is a number
                     if a.type_data != b.type_data {
-                        todo!("error handling");
+                        panic!("type mismatch!"); // TODO: error handling
                     };
                     a.type_data.unwrap()
                 },
@@ -42,7 +44,32 @@ pub fn type_check<'a, 'sy>(symbols: &SymbolTable<'a>, ast: &mut AstNode<'a>) -> 
         },
         AstNodeKind::UnOp { op, target } => {
             errors.append(&mut type_check(symbols, target));
-            todo!("todo=unop")
+            match op.data {
+                UnOp::Negate => {
+                    // only signed ints and floats can be negated
+                    let t = target.type_data.unwrap();
+
+                    let prim = symbols.get_primitive_type_from_id(t).get_props();
+                    match prim {
+                        TypeProps::Integer { signed, .. } => {
+                            if !signed {
+                                panic!("cannot negate an unsigned integer")
+                            }
+                        }
+                        TypeProps::Float { .. } => { /* ok! */ }
+                        TypeProps::Standalone => panic!("cannot negate a non-number")
+                    }
+                    t
+                }
+                UnOp::Not => {
+                    let b_type = symbols.get_primitive(PrimitiveType::Bool);
+                    if target.type_data != Some(b_type) {
+                        panic!("can only apply `!` to boolean"); // TODO: error handling
+                    }
+                    b_type
+                }
+                _ => todo!("unop semantic analysis is not fully implemented")
+            }
         },
         AstNodeKind::Error => todo!(),
     });

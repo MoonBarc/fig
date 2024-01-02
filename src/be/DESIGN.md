@@ -5,6 +5,7 @@ The backend takes in an AST and Symbol Table.
  - [**DONE**] Generating high level intermediate representation (three address code/HLIR)
  - [**DONE**] Breaking down the HLIR into basic blocks
  - Performing control flow analysis with those basic blocks
+- Proper register allocation
  - Converting three address code into SSA
  - Optimize!
  - [**DONE**] Convert SSA into assembly
