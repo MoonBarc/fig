@@ -7,6 +7,8 @@ pub mod ast;
 pub mod parser;
 pub mod types;
 pub mod symbols;
+pub mod scope;
+pub mod item;
 
 #[derive(Debug)]
 pub struct Sp<'a, T: Debug> {

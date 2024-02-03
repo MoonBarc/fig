@@ -46,6 +46,7 @@ pub enum Token<'a> {
     LBrace, RBrace, // {}
     LBracket, RBracket, // []
     Comma, // ,
+    Colon, // :
     // TODO: automatic semicolon insertion
     Semicolon, // ;
     Newline, // Parser::advance deals with this for automatic semicolon insertion
@@ -80,7 +81,7 @@ pub enum Token<'a> {
 
     // Internal
     Error(LexError),
-    Nothing
+    Nothing,
 }
 
 impl Token<'_> {

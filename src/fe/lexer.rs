@@ -97,6 +97,7 @@ impl<'a> Lexer<'a> {
             '(' => LParen, ')' => RParen,
             '[' => LBracket, ']' => RBracket,
             ',' => Comma,
+            ';' => Colon,
             
             // '\n' => Newline,
             

@@ -1,35 +1,23 @@
-use std::{io::{Write, BufWriter}, collections::HashMap};
+use std::io::{Write, BufWriter};
 
-use crate::{be::{ir::{IrBlock, IrOpKind, IrOperand, IrOp}, consts::ConstTable, CompUnit}, fe::ast::{ConstantValue, CompInt}};
+use crate::{
+    be::{ir::{IrBlock, IrOpKind, IrOperand}, CompUnit, platform::ra_profile::ArmRegAlloc, ralloc::RegAllocProfile},
+    fe::ast::{ConstantValue, CompInt}
+};
 
-#[derive(Debug)]
-pub enum Register {
-    /// represents arm x{n} register
-    X(usize),
-    /// it spilled to ram
-    Spilled(usize)
+trait IntoArmReg {
+    fn arm_asm(&self) -> String;
 }
 
-#[derive(Debug, Hash, PartialEq, Eq)]
-pub enum VarTy {
-    // a variable from the symtable
-    Var(usize),
-    // a temporary of this block
-    Temporary(usize),
-    // a code-level temporary that expires immediately
-    CLTemp
-}
-
-#[derive(Debug)]
-pub struct RegisterAllocation {
-    reg: usize,
-    // pc where this variable dies
-    until: usize
+impl IntoArmReg for IrOperand {
+    fn arm_asm(&self) -> String {
+        let n = self.unwrap_reg();
+        format!("x{}", n)
+    }
 }
 
 pub struct Arm64Generator<'a, T: Write> {
     next_block_id: usize,
-    reg_alloc: HashMap<VarTy, RegisterAllocation>,
     output: BufWriter<T>,
     unit: CompUnit<'a>
 }
@@ -39,7 +27,6 @@ impl<'a, T: Write> Arm64Generator<'a, T> {
         let mut s = Self {
             next_block_id: 0,
             output: BufWriter::new(wr),
-            reg_alloc: HashMap::new(),
             unit
         };
         s.generate_const_block();
@@ -81,84 +68,47 @@ impl<'a, T: Write> Arm64Generator<'a, T> {
         self.write(".text:\n");
     }
 
-    fn get_reg_for_op(&self, op: &IrOperand) -> usize {
-        match op {
-            IrOperand::Constant(_) => panic!("can't get a register for a constant"),
-            IrOperand::Reference(..) | IrOperand::Temporary(..) => {
-                let varty = match op {
-                    IrOperand::Reference(r) => VarTy::Var(*r),
-                    IrOperand::Temporary(t) => VarTy::Temporary(*t),
-                    _ => unreachable!()
-                };
-                self.reg_alloc.get(&varty).unwrap().reg
-            },
-        }
-    }
-
-    fn get_temporary_reg(&mut self) -> usize {
-        let i = self.reg_alloc.len();
-        self.reg_alloc.insert(VarTy::CLTemp, RegisterAllocation {
-            reg: i,
-            until: 0    
-        });
-        i
-    }
-
-    pub fn gen(&mut self, entry: &IrBlock) {
-        // HACK: stupidest possible register allocation incoming!
-        
-        let mut i = 0;
-        for instr in &entry.ops {
-            let Some(reg) = instr.result_into.clone() else { continue };
-            self.reg_alloc.insert(match reg {
-                IrOperand::Reference(r) => VarTy::Var(r),
-                IrOperand::Temporary(d) => VarTy::Temporary(d),
-                _ => panic!("can't store anything in a constant!")
-            }, RegisterAllocation {
-                reg: i,
-                until: 489048,
-            });
-            i += 1;
-        }
-        
+    pub fn gen(&mut self, entry: &mut IrBlock) {
         use IrOpKind::*;
 
+        let ra = ArmRegAlloc::make();
+
+        ra.allocate_for(entry);
+
         for instr in &entry.ops {
+            let into = instr.result_into
+                .clone()
+                .map(|r| r.arm_asm());
             match &instr.kind {
-                Set(to_load) => {
-                    let into = instr.result_into.clone().unwrap();
-                    let into = format!("x{}", self.get_reg_for_op(&into));
-                    let l = match to_load {
-                        IrOperand::Constant(c) => {
-                            format!("ldr {}, {}", into, self.unit.consts.const_names[*c])
-                        },
-                        _ => {
-                            format!("mov {}, {}", into, self.get_reg_for_op(to_load))
-                        },
-                    };
-                    self.instr(&l);
+                LoadC(c) => {
+                    let into = into.unwrap();
+                    let t = format!("ldr {}, {}", into, self.unit.consts.const_names[*c]);
+                    self.instr(&t);
                 },
-                Add(a, b) | Sub(a, b) | Mul(a, b) | Div(a, b) => {
-                    let out = self.get_reg_for_op(&instr.result_into.clone().unwrap());
-                    let a = self.get_reg_for_op(a);
-                    let b = self.get_reg_for_op(b);
+                Add | Sub | Mul | Div => {
+                    let out = into.unwrap();
+                    let [a, b] = &instr.ops[..] else { unreachable!() };
+                    let a = a.arm_asm();
+                    let b = b.arm_asm();
                     let iname = match instr.kind {
-                        Add(..) => "add",
-                        Sub(..) => "sub",
-                        Mul(..) => "mul",
-                        Div(..) => "sdiv",
+                        Add => "add",
+                        Sub => "sub",
+                        Mul => "mul",
+                        Div => "sdiv",
                         _ => unreachable!()
                     };
-                    self.instr(&format!("{} x{}, x{}, x{}", iname, out, a, b));
+                    self.instr(&format!("{} {}, {}, {}", iname, out, a, b));
                 },
-                Neg(i) => {
-                    let x = self.get_reg_for_op(i);
-                    let out = self.get_reg_for_op(&instr.result_into.clone().unwrap());
-                    self.instr(&format!("neg x{}, x{}", out, x));
+                Neg => {
+                    let [i] = &instr.ops[..] else { unreachable!() };
+                    let x = i.arm_asm();
+                    let out = into.unwrap();
+                    self.instr(&format!("neg {}, {}", out, x));
                 }
-                Ret(i) => {
-                    let x0 = self.get_reg_for_op(i);
-                    self.instr(&format!("mov x0, x{}", x0));
+                Ret => {
+                    let [i] = &instr.ops[..] else { unreachable!() };
+                    let x0 = i.arm_asm();
+                    self.instr(&format!("mov 0, {}", x0));
                     self.instr("ret");
                 },
                 _ => {}

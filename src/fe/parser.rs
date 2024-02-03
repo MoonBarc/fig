@@ -1,6 +1,6 @@
 use std::mem;
 
-use super::{token::Token, Sp, lexer::Lexer, ast::{self, AstNodeKind, RawAstNode, UnOp, Statement, ImportElement, AstNode}, CompileError};
+use super::{token::Token, Sp, lexer::Lexer, ast::{self, AstNodeKind, RawAstNode, UnOp, Statement, ImportElement, AstNode, MaybeTyped}, CompileError};
 
 pub struct Parser<'a> {
     lexer: Lexer<'a>,
@@ -50,17 +50,23 @@ impl<'a> Parser<'a> {
 
     pub fn parse(mut self) -> (Vec<Statement<'a>>, Vec<CompileError<'a>>) {
         let mut stmts = vec![];
-        while !self.pick(Token::Nothing) {
-            let stmt = if self.pick(Token::Import) {
-                self.import()
-            } else if self.pick(Token::Let) {
-                self.decl()
-            } else {
-                Statement::Expression(self.top_parse())
-            };
+        while !self.pick(&Token::Nothing) {
+            let stmt = self.statement();
             stmts.push(stmt);
         }
         (stmts, self.errors)
+    }
+
+    fn statement(&mut self) -> Statement<'a> {
+        if self.pick(&Token::Import) {
+            self.import()
+        } else if self.pick(&Token::Let) {
+            self.decl()
+        } else if self.pick(&Token::Return) {
+            self.ret()
+        } else {
+            Statement::Expression(self.top_parse())
+        }
     }
     
     pub fn parse_expr(mut self) -> (AstNode<'a>, Vec<CompileError<'a>>) {
@@ -68,8 +74,53 @@ impl<'a> Parser<'a> {
         (thing, self.errors)
     }
 
+    fn unwrap_current_id_unchecked(&self) -> &'a str {
+        match *self.current {
+            Token::Identifier(i) => i,
+            _ => unreachable!()
+        }
+    }
+
+    fn ret(&mut self) -> Statement<'a> {
+        let expr = self.top_parse();
+        Statement::Return(expr)
+    }
+
     fn decl(&mut self) -> Statement<'a> {
-        todo!(); // TODO: implement let declarations
+        if !self.pick(&Token::Identifier("")) {
+            self.error("expected identifier to follow start of declaration");
+            return Statement::Error
+        }
+        let id = self.unwrap_current_id_unchecked();
+        let mut type_spec = MaybeTyped::NotTyped;
+        if self.pick(&Token::Colon) {
+            // yay, types!
+            if !self.pick(&Token::Identifier("")) {
+                // we can still try to continue without explicit type info, so we're not returning
+                self.error("expected type identifier following start of type specification (`:`)");
+            } else {
+                type_spec = MaybeTyped::TypeProvided(self.unwrap_current_id_unchecked());
+            }
+        }
+        if self.pick(&Token::Assign) {
+            if !self.pick(&Token::Semicolon) {
+                self.error("expected `;` to end declaration without initializer. perhaps you forgot the `=`?");
+                return Statement::Error
+            }
+        } else {
+            self.error("expected `=` to follow name of declaration");
+            return Statement::Error
+        }
+        let initializer = self.top_parse();
+        if !self.pick(&Token::Semicolon) {
+            self.error("expected `;` to end declaration");
+            return Statement::Error
+        }
+        Statement::Declare {
+            id,
+            with_type: type_spec,
+            value: initializer 
+        }
     }
 
     fn import(&mut self) -> Statement<'a> {
@@ -83,7 +134,7 @@ impl<'a> Parser<'a> {
         match self.advance() {
             Token::Identifier(id) => {
                 let id = *id;
-                if self.pick(Token::Dot) {
+                if self.pick(&Token::Dot) {
                     vec![ImportElement::Access(id, self.import_elem())]
                 } else {
                     vec![ImportElement::Item(id)]
@@ -95,9 +146,9 @@ impl<'a> Parser<'a> {
                     if matches!(*self.next, Token::RParen) { break }
                     let mut elem = self.import_elem();
                     elems.append(&mut elem);
-                    if !self.pick(Token::Comma) { break }
+                    if !self.pick(&Token::Comma) { break }
                 }
-                if !self.pick(Token::RParen) {
+                if !self.pick(&Token::RParen) {
                     self.error("expected a closing `)` for import statement group");
                     return vec![]
                 }
@@ -167,7 +218,7 @@ impl<'a> Parser<'a> {
     
     fn group(&mut self) -> AstNode<'a> {
         let n = self.parse_with_prec(prec::ASSIGN);
-        if !self.pick(Token::RParen) {
+        if !self.pick(&Token::RParen) {
             return self.error("expected `)` to end group")
         };
         n
@@ -245,8 +296,8 @@ impl<'a> Parser<'a> {
         &self.current
     }
 
-    fn pick(&mut self, tt: Token) -> bool {
-        if mem::discriminant(&tt) == mem::discriminant(&self.next) {
+    fn pick(&mut self, tt: &Token) -> bool {
+        if mem::discriminant(tt) == mem::discriminant(&self.next) {
             self.advance();
             true
         } else { false }

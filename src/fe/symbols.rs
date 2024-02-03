@@ -93,9 +93,9 @@ primitives!(
 #[derive(Debug, PartialEq)]
 pub enum TypeKind<'a> {
     Primitive,
-    Unit,
     Struct { fields: HashMap<&'a str, usize> },
-    TupleStruct { fields: Vec<usize> },
+    UnitStruct,
+    Tuple { fields: Vec<usize> },
     Function {
         params: Vec<usize>,
         out: usize 
@@ -105,7 +105,7 @@ pub enum TypeKind<'a> {
 #[derive(Debug, PartialEq)]
 pub struct Type<'a> {
     name: &'a str,
-    kind: TypeKind<'a>,
+    kind: TypeKind<'a>
 }
 
 #[derive(Debug)]
@@ -127,6 +127,12 @@ impl<'a> SymbolTable<'a> {
             tbl: HashMap::new(),
             primitive_map: HashMap::new()
         };
+        let unit = s.add(Sp::builtin(Symbol::Type(
+            Type {
+                name: "unit",
+                kind: TypeKind::Tuple { fields: vec![] }
+            }
+        )));
         add_primitives(&mut s);
         s
     }
@@ -150,26 +156,9 @@ impl<'a> SymbolTable<'a> {
         self.tbl.insert(id, s);
         id
     }
-}
 
-#[derive(Debug)]
-pub struct ScopeItem<'a> {
-    name: &'a str,
-    depth: usize
-}
-
-#[derive(Debug)]
-pub struct Scope<'a> {
-    pub items: Vec<ScopeItem<'a>>
-}
-
-pub fn resolve(scope: &Scope, ast: &mut AstNode) {
-    match &mut *ast.kind {
-        AstNodeKind::Value(..) | AstNodeKind::Error => {}, // nothing to do
-        AstNodeKind::BinOp { ref mut a, ref mut b, .. } => {
-            resolve(scope, a);
-            resolve(scope, b);
-        },
-        AstNodeKind::UnOp { target, .. } => todo!(),
+    pub fn unit(&mut self) -> usize {
+        0
     }
 }
+

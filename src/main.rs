@@ -1,51 +1,62 @@
-use std::{io::stdout, fs::File};
+use std::fs::File;
 
 use crate::{
-    fe::{ast::{print_statements, print_tree},
-    symbols::SymbolTable, parser::Parser, types},
-    be::{irgen::IrGen, ir::{IrBlock, IrOp, IrOpKind, IrOperand}, consts::ConstTable, platform::arm64::Arm64Generator, CompUnit}
+    fe::{ast::print_statements, symbols::SymbolTable, parser::Parser, types, item::Item},
+    be::{
+        irgen::IrGen,
+        ir::{IrBlock, IrOp, IrOpKind},
+        consts::ConstTable,
+        platform::arm64::Arm64Generator,
+        CompUnit
+    }
 };
 
 mod fe;
 mod be;
 
 fn main() {
-    let prog = include_str!("../expr.fig");
+    let prog = include_str!("../current.fig");
     let mut syms = SymbolTable::new();
-    let mut consts = ConstTable::new();
-    let mut parser = Parser::new(prog);
+    let consts = ConstTable::new();
+    let parser = Parser::new(prog);
 
-    let (mut ast, errs) = parser.parse_expr();
-    types::type_check(&syms, &mut ast);
-    println!("ast: ");
-    // print_statements(&syms, 0, &stmts);
-    print_tree(&syms, 0, "root", &ast);
-    println!("errs: {:?}", errs);
+    let (mut stmts, errs) = parser.parse();
+    if !errs.is_empty() {
+        println!("errs: {:?}", errs);
+    } else {
+        println!("parsing succeeded without errors :)");
+    }
+    types::type_check_block(&syms, &mut stmts);
+    print_statements(&syms, 0, &stmts);
 
     let mut block = IrBlock::new();
     let mut generator = IrGen::new();
-    let out = generator.gen_code(&mut consts, &syms, &mut block, ast);
-    
     println!("{:#?}", &consts);
+    let mut comp_unit = CompUnit {
+        prog,
+        consts,
+        items: vec![Item::Function {
+            code: stmts,
+            return_type: syms.unit()
+        }],
+    };
+
+    let out = generator.gen(&syms, &mut comp_unit, &mut block);
+    
     block.print();
     println!("return val in {:?}", out);
     // return the final value
-    block.ops.push(IrOp {
-        kind: IrOpKind::Ret(out),
-        result_into: None
-    });
+    // block.ops.push(IrOp {
+    //     kind: IrOpKind::Ret(out),
+    //     result_into: None
+    // });
 
-    println!("begin asm:");
-    let unit = CompUnit {
-        prog: &prog,
-        consts,
-        items: Vec::new(),
-    };
+    println!("generating assembly");
     let mut arm_gen = Arm64Generator::new(
         File::create("./prog_out.s").unwrap(),
-        unit
+        comp_unit
     );
-    arm_gen.gen(&block);
+    arm_gen.gen(&mut block);
 
     println!("o/");
 }

@@ -1,8 +1,8 @@
 use crate::fe::ast::UnOp;
 use crate::fe::symbols::TypeProps;
-use super::{ast::{ConstantValue, AstNodeKind, AstNode, CompFloat, CompInt, BinOp}, CompileError, Sp, symbols::{SymbolTable, PrimitiveType}};
+use super::{ast::{ConstantValue, AstNodeKind, AstNode, CompFloat, CompInt, BinOp, Statement}, CompileError, Sp, symbols::{SymbolTable, PrimitiveType}};
 
-pub fn type_check<'a, 'sy>(symbols: &SymbolTable<'a>, ast: &mut AstNode<'a>) -> Vec<CompileError<'a>> {
+pub fn type_check<'a>(symbols: &SymbolTable<'a>, ast: &mut AstNode<'a>) -> Vec<CompileError<'a>> {
     let mut errors = vec![];
 
     ast.type_data = Some(match &mut *ast.kind {
@@ -71,8 +71,29 @@ pub fn type_check<'a, 'sy>(symbols: &SymbolTable<'a>, ast: &mut AstNode<'a>) -> 
                 _ => todo!("unop semantic analysis is not fully implemented")
             }
         },
-        AstNodeKind::Error => todo!(),
+        AstNodeKind::Error => todo!("fix your error for now"),
     });
 
     errors
+}
+
+pub fn type_check_block<'a>(symbols: &SymbolTable<'a>, block: &mut Vec<Statement<'a>>) -> Vec<CompileError<'a>> {
+    let errs = vec![];
+    for stmt in block {
+        match stmt {
+            Statement::Declare { id, with_type, value } => {
+                type_check(&symbols, value);
+                // TODO: error handling
+                assert_eq!(with_type.unwrap_type(), value.type_data.unwrap(), "type mismatch!")
+            },
+            Statement::Expression(e) => {
+                type_check(&symbols, e);
+            },
+            Statement::Return(e) => {
+                type_check(&symbols, e);
+            },
+            Statement::Import { .. } | Statement::Error => { },
+        };
+    }
+    errs
 }

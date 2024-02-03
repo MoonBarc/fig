@@ -1,8 +1,10 @@
 //! The HLIR (high level intermediate representation) Generator
 
-use crate::fe::{ast::{AstNode, AstNodeKind, BinOp, UnOp}, symbols::SymbolTable};
+use std::{collections::HashMap, ops::Range};
 
-use super::{ir::*, consts::ConstTable};
+use crate::fe::{ast::{AstNode, AstNodeKind, BinOp, UnOp, Statement}, symbols::SymbolTable, item::Item};
+
+use super::{ir::*, consts::ConstTable, CompUnit};
 
 /// generates three address code
 pub struct IrGen {
@@ -16,6 +18,31 @@ impl IrGen {
         }
     }
 
+    pub fn gen<'a>(
+        &mut self,
+        sym_table: &SymbolTable<'a>,
+        unit: &mut CompUnit<'a>,
+        target: &mut IrBlock
+    ) {
+        // TODO: look for main function instead
+        let Item::Function { code, .. } = unit.items.swap_remove(0) else { unreachable!() };
+        let consts = &mut unit.consts;
+        for stmt in code {
+            match stmt {
+                Statement::Expression(ast) => { self.gen_code(consts, sym_table, target, ast); },
+                Statement::Return(ast) => {
+                    let out = self.gen_code(consts, sym_table, target, ast);
+                    target.ops.push(IrOp {
+                        kind: IrOpKind::Ret,
+                        ops: vec![out],
+                        result_into: None
+                    });
+                }
+                _ => { todo!() }
+            };
+        }
+    }
+
     /// generates code to evaluate the provided node and returns the ssa id of the result
     pub fn gen_code<'a>(
         &mut self,
@@ -24,13 +51,15 @@ impl IrGen {
         target: &mut IrBlock,
         ast: AstNode<'a>
     ) -> IrOperand {
+        let map = HashMap::<&IrOperand, Range<usize>>::new();
         let n = *ast.data.kind;
         match n {
             AstNodeKind::Value(v) => {
                 let constant = consts.add(v);
                 let out_id = self.allocate_temp();
                 target.ops.push(IrOp {
-                    kind: IrOpKind::Set(IrOperand::Constant(constant)),
+                    ops: vec![],
+                    kind: IrOpKind::LoadC(constant),
                     result_into: Some(out_id.clone())
                 });
                 out_id
@@ -43,12 +72,13 @@ impl IrGen {
                 use IrOpKind::*;
                 target.ops.push(IrOp {
                     kind: match *op {
-                        BinOp::Add => Add(a, b),
-                        BinOp::Sub => Sub(a, b),
-                        BinOp::Mul => Mul(a, b),
-                        BinOp::Div => Div(a, b),
+                        BinOp::Add => Add,
+                        BinOp::Sub => Sub,
+                        BinOp::Mul => Mul,
+                        BinOp::Div => Div,
                         _ => todo!("many primitive binops are missing at the moment!")
                     },
+                    ops: vec![a, b],
                     result_into: Some(out_id.clone())
                 });
 
@@ -61,9 +91,10 @@ impl IrGen {
                 use IrOpKind::*;
                 target.ops.push(IrOp {
                     kind: match *op {
-                        UnOp::Negate => Neg(target_done),
+                        UnOp::Negate => Neg,
                         _ => todo!("the other primitive unops aren't working yet!")
                     },
+                    ops: vec![target_done],
                     result_into: Some(out_id.clone())
                 });
 

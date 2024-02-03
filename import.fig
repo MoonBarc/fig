@@ -1,6 +1,0 @@
-import a.(b, c, (d, s.morgus))
-import b
-
-5 + 5
-2 + 2
-*5

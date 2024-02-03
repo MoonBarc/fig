@@ -1,5 +1,3 @@
-use std::collections::HashMap;
-
 use super::{Sp, symbols::SymbolTable};
 
 #[derive(Debug)]
@@ -116,9 +114,9 @@ pub enum MaybeTyped<'a> {
 }
 
 impl<'a> MaybeTyped<'a> {
-    pub fn unwrap_type(self) -> usize {
+    pub fn unwrap_type(&self) -> usize {
         match self {
-            Self::TypeResolved(r) => return r,
+            Self::TypeResolved(r) => return *r,
             _ => panic!("tried to unwrap type but got {:?}", self)
         }
     }
@@ -141,7 +139,9 @@ pub enum Statement<'a> {
     Expression(AstNode<'a>),
     Import {
         paths: Vec<ImportElement<'a>>
-    }
+    },
+    Return(AstNode<'a>),
+    Error
 }
 
 /// The *Beeg* Space String Function®
@@ -182,9 +182,16 @@ pub fn print_statements(symbols: &SymbolTable, depth: u16, stmts: &Vec<Statement
                 println!("{}Expression", s);
                 print_tree(symbols, depth + 1, "e", &e);
             },
+            Statement::Return(e) => {
+                println!("{}Return", s);
+                print_tree(symbols, depth + 1, "r", &e);
+            },
             Statement::Import { paths } => {
                 println!("{}Import {:?}", s, paths);
             },
+            Statement::Error => {
+                println!("{}Error!", s);
+            }
         }
     }
 }
