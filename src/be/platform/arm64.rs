@@ -108,7 +108,7 @@ impl<'a, T: Write> Arm64Generator<'a, T> {
                 Ret => {
                     let [i] = &instr.ops[..] else { unreachable!() };
                     let x0 = i.arm_asm();
-                    self.instr(&format!("mov 0, {}", x0));
+                    self.instr(&format!("mov x0, {}", x0));
                     self.instr("ret");
                 },
                 _ => {}

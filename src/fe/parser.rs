@@ -6,7 +6,7 @@ pub struct Parser<'a> {
     lexer: Lexer<'a>,
     current: Sp<'a, Token<'a>>,
     next: Sp<'a, Token<'a>>,
-    panicking: bool,
+    panicking: bool, // TODO: error recovery
     errors: Vec<CompileError<'a>>,
 }
 
@@ -83,6 +83,10 @@ impl<'a> Parser<'a> {
 
     fn ret(&mut self) -> Statement<'a> {
         let expr = self.top_parse();
+        if !self.pick(&Token::Semicolon) {
+            self.error("expected `;` to end return");
+            return Statement::Error
+        }
         Statement::Return(expr)
     }
 
@@ -172,7 +176,11 @@ impl<'a> Parser<'a> {
             LParen => self.group(),
             Sub | Not => self.unary(prec),
             // Identifier(_) => self.identifier(),
-            _ => return self.error("expected expression")
+            _ => {
+                dbg!(&self.current, &self.next);
+                panic!();
+                return self.error("expected expression")
+            }
         };
 
         while {
@@ -290,7 +298,15 @@ impl<'a> Parser<'a> {
     }
 
     fn advance(&mut self) -> &Token<'a> {
-        let next = self.lexer.next().unwrap_or_else(|| Token::nothing_span());
+        let mut next;
+        loop {
+            next = self.lexer.next().unwrap_or_else(|| Token::nothing_span());
+            if let Token::Comment(..) = *next {
+                continue
+            }
+
+            break
+        }
         mem::swap(&mut self.next, &mut self.current);
         self.next = next;
         &self.current

@@ -51,7 +51,6 @@ impl IrGen {
         target: &mut IrBlock,
         ast: AstNode<'a>
     ) -> IrOperand {
-        let map = HashMap::<&IrOperand, Range<usize>>::new();
         let n = *ast.data.kind;
         match n {
             AstNodeKind::Value(v) => {

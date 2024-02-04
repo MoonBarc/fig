@@ -44,7 +44,6 @@ impl RegisterAllocator {
                 // add edges for each register that is live at the same time
                 for (instr2, range2) in &ranges {
                     if range.contains(&range2.start) || range2.contains(&range.start) {
-                        println!("{:?} <--> {:?}", instr, instr2);
                         graph.add_edge(instr, instr2);
                     }
                 }
