@@ -1,6 +1,6 @@
 use std::mem;
 
-use super::{token::Token, Sp, lexer::Lexer, ast::{self, AstNodeKind, RawAstNode, UnOp, Statement, ImportElement, AstNode, MaybeTyped}, CompileError};
+use super::{token::Token, Sp, lexer::Lexer, ast::{self, AstNodeKind, RawAstNode, UnOp, Statement, ImportElement, AstNode, MaybeTyped, Reference}, CompileError};
 
 pub struct Parser<'a> {
     lexer: Lexer<'a>,
@@ -58,7 +58,7 @@ impl<'a> Parser<'a> {
     }
 
     fn statement(&mut self) -> Statement<'a> {
-        if self.pick(&Token::Import) {
+        let stmt = if self.pick(&Token::Import) {
             self.import()
         } else if self.pick(&Token::Let) {
             self.decl()
@@ -66,7 +66,12 @@ impl<'a> Parser<'a> {
             self.ret()
         } else {
             Statement::Expression(self.top_parse())
+        };
+        if !self.pick(&Token::Semicolon) {
+            self.error("expected `;` to end statement");
+            return Statement::Error
         }
+        stmt
     }
     
     pub fn parse_expr(mut self) -> (AstNode<'a>, Vec<CompileError<'a>>) {
@@ -83,10 +88,6 @@ impl<'a> Parser<'a> {
 
     fn ret(&mut self) -> Statement<'a> {
         let expr = self.top_parse();
-        if !self.pick(&Token::Semicolon) {
-            self.error("expected `;` to end return");
-            return Statement::Error
-        }
         Statement::Return(expr)
     }
 
@@ -106,22 +107,13 @@ impl<'a> Parser<'a> {
                 type_spec = MaybeTyped::TypeProvided(self.unwrap_current_id_unchecked());
             }
         }
-        if self.pick(&Token::Assign) {
-            if !self.pick(&Token::Semicolon) {
-                self.error("expected `;` to end declaration without initializer. perhaps you forgot the `=`?");
-                return Statement::Error
-            }
-        } else {
+        if !self.pick(&Token::Assign) {
             self.error("expected `=` to follow name of declaration");
             return Statement::Error
         }
         let initializer = self.top_parse();
-        if !self.pick(&Token::Semicolon) {
-            self.error("expected `;` to end declaration");
-            return Statement::Error
-        }
         Statement::Declare {
-            id,
+            id: Reference::Unresolved(id),
             with_type: type_spec,
             value: initializer 
         }
@@ -173,6 +165,7 @@ impl<'a> Parser<'a> {
         use Token::*;
         let mut node = match self.advance() {
             n if n.is_value() => self.value(),
+            Identifier(..) => self.ident(),
             LParen => self.group(),
             Sub | Not => self.unary(prec),
             // Identifier(_) => self.identifier(),
@@ -189,12 +182,18 @@ impl<'a> Parser<'a> {
         } {
             node = match self.advance() {
                 Add | AddEq | Sub | SubEq | Mul | MulEq | Div | DivEq
-                    | Pow | PowEq | Mod | ModEq => self.binary(node, self.current.get_precedence() + 1),
+                    | Pow | PowEq | Mod | ModEq | Assign => self.binary(node, self.current.get_precedence() + 1),
                 x => panic!("{:#?} has precedence but no associated infix operation", x)
             };
         }
 
         node 
+    }
+
+    fn ident(&mut self) -> AstNode<'a> {
+        self.sp(AstNodeKind::Reference(
+            Reference::Unresolved(self.unwrap_current_id_unchecked())
+        ))
     }
 
     fn unary(&mut self, prec: u8) -> AstNode<'a> {

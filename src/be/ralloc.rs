@@ -86,7 +86,6 @@ impl RegisterAllocator {
                 for neigh in &node.edges {
                     if let Some(c) = colormap.get(neigh).unwrap_or(&None) {
                         colors[*c as usize] = true;
-                        println!("c");
                     }
                 }
                 let mut color = None;

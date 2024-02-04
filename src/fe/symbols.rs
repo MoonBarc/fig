@@ -110,7 +110,7 @@ pub struct Type<'a> {
 
 #[derive(Debug)]
 pub enum Symbol<'a> {
-    Variable { ty: usize },
+    Variable { ty: Option<usize> },
     Type(Type<'a>)
 }
 
@@ -127,12 +127,12 @@ impl<'a> SymbolTable<'a> {
             tbl: HashMap::new(),
             primitive_map: HashMap::new()
         };
-        let unit = s.add(Sp::builtin(Symbol::Type(
+        s.add(Sp::builtin(Symbol::Type(
             Type {
                 name: "unit",
                 kind: TypeKind::Tuple { fields: vec![] }
             }
-        )));
+        ))); // added first, always ID=0
         add_primitives(&mut s);
         s
     }
@@ -157,7 +157,7 @@ impl<'a> SymbolTable<'a> {
         id
     }
 
-    pub fn unit(&mut self) -> usize {
+    pub fn unit(&self) -> usize {
         0
     }
 }

@@ -29,7 +29,7 @@ pub enum ConstantValue<'a> {
     Nil
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq)]
 pub enum BinOp {
     Assign,
 
@@ -58,9 +58,32 @@ pub enum UnOp {
     Try
 }
 
+#[derive(Debug, Clone)]
+pub enum Reference<'a> {
+    Unresolved(&'a str),
+    Resolved(usize)
+}
+
+impl<'a> Reference<'a> {
+    pub fn unwrap_str(self) -> &'a str {
+        match self {
+            Self::Unresolved(a) => a,
+            _ => unreachable!()
+        }
+    }
+
+    pub fn unwrap_resolved(self) -> usize {
+        match self {
+            Self::Resolved(a) => a,
+            _ => unreachable!()
+        }
+    }
+}
+
 #[derive(Debug)]
 pub enum AstNodeKind<'a> {
     Value(ConstantValue<'a>),
+    Reference(Reference<'a>),
     BinOp {
         a: AstNode<'a>,
         b: AstNode<'a>,
@@ -132,7 +155,7 @@ impl<'a> MaybeTyped<'a> {
 #[derive(Debug)]
 pub enum Statement<'a> {
     Declare {
-        id: &'a str,
+        id: Reference<'a>,
         with_type: MaybeTyped<'a>,
         value: AstNode<'a>
     },
@@ -166,6 +189,9 @@ pub fn print_tree(symbols: &SymbolTable, depth: u16, label: &str, node: &AstNode
             println!("{}UnOp({:?})", s, **op);
             print_tree(symbols, depth + 1, "t", &target);
         }
+        AstNodeKind::Reference(r) => {
+            println!("{}Reference({:?})", s, r);
+        },
         _ => println!("unknown")
     }
 }
@@ -175,7 +201,7 @@ pub fn print_statements(symbols: &SymbolTable, depth: u16, stmts: &Vec<Statement
     for stmt in stmts {
         match stmt {
             Statement::Declare { id, with_type, value } => {
-                println!("{}Declare {}: {:?}", s, id, with_type);
+                println!("{}Declare {:?}: {:?}", s, id, with_type);
                 print_tree(symbols, depth + 1, "value", &value);
             },
             Statement::Expression(e) => {

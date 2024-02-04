@@ -104,6 +104,11 @@ impl<'a, T: Write> Arm64Generator<'a, T> {
                     let x = i.arm_asm();
                     let out = into.unwrap();
                     self.instr(&format!("neg {}, {}", out, x));
+                },
+                Cpy => {
+                    let [i] = &instr.ops[..] else { unreachable!() };
+                    let out = into.unwrap();
+                    self.instr(&format!("mov {}, {}", out, i.arm_asm()));
                 }
                 Ret => {
                     let [i] = &instr.ops[..] else { unreachable!() };

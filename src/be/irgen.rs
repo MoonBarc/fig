@@ -37,6 +37,18 @@ impl IrGen {
                         ops: vec![out],
                         result_into: None
                     });
+                },
+                Statement::Declare {
+                    id,
+                    value,
+                    ..
+                } => {
+                    let out = self.gen_code(consts, sym_table, target, value);
+                    target.ops.push(IrOp {
+                        kind: IrOpKind::Cpy,
+                        ops: vec![out],
+                        result_into: Some(IrOperand::Reference(id.unwrap_resolved()))
+                    });
                 }
                 _ => { todo!() }
             };
@@ -67,6 +79,16 @@ impl IrGen {
                 let a = self.gen_code(consts, sym_table, target, a);
                 let b = self.gen_code(consts, sym_table, target, b);
                 let out_id = self.allocate_temp();
+
+                // special case
+                if *op == BinOp::Assign {
+                    target.ops.push(IrOp {
+                        kind: Cpy,
+                        ops: vec![b.clone()],
+                        result_into: Some(a.clone())
+                    });
+                    return a;
+                }
 
                 use IrOpKind::*;
                 target.ops.push(IrOp {
@@ -99,6 +121,9 @@ impl IrGen {
 
                 out_id
             },
+            AstNodeKind::Reference(r) => {
+                IrOperand::Reference(r.unwrap_resolved())
+            }
             AstNodeKind::Error => panic!("tried to generate code from a faulty AST"),
         }
     }

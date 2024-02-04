@@ -1,9 +1,11 @@
-use super::item::Item;
+use std::mem;
+
+use super::{ast::{AstNode, Statement, AstNodeKind, Reference}, symbols::{SymbolTable, Symbol}, Sp};
 
 pub struct ScopeItem<'a> {
     name: &'a str,
     depth: usize,
-    item: Item<'a>
+    item: usize
 }
 
 pub struct Scope<'a> {
@@ -33,11 +35,53 @@ impl<'a> Scope<'a> {
         self.items.retain(|i| i.depth <= self.depth);
     }
 
-    fn add(&mut self, item: Item<'a>, name: &'a str) {
+    pub fn add(&mut self, item: usize, name: &'a str) {
         self.items.push(ScopeItem {
             name,
             depth: self.depth,
             item
         })
+    }
+
+    pub fn get(&self, name: &'a str) -> Option<usize> {
+        for item in self.items.iter().rev() {
+            if item.name == name {
+                return Some(item.item)
+            }
+        }
+        None
+    }
+
+    pub fn resolve(&mut self, ast: &mut AstNode) {
+        match &mut *ast.kind {
+            AstNodeKind::Reference(ref mut r) => {
+                let ra = r.clone().unwrap_str();
+                let thing = self.get(ra)
+                    .expect(&format!("unresolved identifier `{}`", ra));
+                *r = Reference::Resolved(thing);
+            },
+            AstNodeKind::BinOp { a, b, .. } => { self.resolve(a); self.resolve(b); }
+            AstNodeKind::UnOp { target, .. } => { self.resolve(target); }
+            _ => { /* irrelevant! */ }
+        }
+    }
+    
+    pub fn resolve_block(&mut self, syms: &mut SymbolTable<'a>, stmts: &mut Vec<Statement<'a>>) {
+        for s in stmts {
+            match s {
+                Statement::Declare { value, ref mut id, .. } => {
+                    self.resolve(value);
+                    // add new thing to the thang
+                    // HACK: THIS IS BUILTIN ABUSE!!!
+                    let sym = syms.add(Sp::builtin(Symbol::Variable { ty: None }));
+
+                    self.add(sym, id.clone().unwrap_str());
+                    *id = Reference::Resolved(sym);
+                },
+                Statement::Expression(e) => self.resolve(e),
+                Statement::Return(e) => self.resolve(e),
+                Statement::Error | Statement::Import { .. } => todo!(),
+            }
+        }
     }
 }

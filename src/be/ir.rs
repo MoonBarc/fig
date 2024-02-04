@@ -28,6 +28,8 @@ impl IrOperand {
 pub enum IrOpKind {
     /// x = (CONST)
     LoadC(usize),
+    /// x = (op1)
+    Cpy,
     /// x = (op1+op2)
     Add,
     /// x = (op1-op2)

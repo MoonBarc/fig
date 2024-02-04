@@ -1,1 +1,5 @@
-return 5+295*2498;
+let a = 5+295*2498;
+let c = a;
+a = 2;
+let b = a*a;
+return b + c;

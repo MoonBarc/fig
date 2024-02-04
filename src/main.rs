@@ -1,7 +1,7 @@
 use std::fs::File;
 
 use crate::{
-    fe::{ast::print_statements, symbols::SymbolTable, parser::Parser, types, item::Item},
+    fe::{ast::print_statements, symbols::SymbolTable, parser::Parser, types, item::Item, scope::Scope},
     be::{
         irgen::IrGen,
         ir::{IrBlock, IrOp, IrOpKind},
@@ -26,7 +26,11 @@ fn main() {
     } else {
         println!("parsing succeeded without errors :)");
     }
-    types::type_check_block(&syms, &mut stmts);
+
+    let mut scope = Scope::new();
+    scope.resolve_block(&mut syms, &mut stmts);
+
+    types::type_check_block(&mut syms, &mut stmts);
     print_statements(&syms, 0, &stmts);
 
     let mut block = IrBlock::new();
