@@ -1,5 +1,18 @@
-let a = 5+295*2498;
-let c = a;
-a = 2;
-let b = a*a;
-return b + c;
+let dogs_age = 5;
+
+// The ratio between dog years to human years (1:7)
+let dog_year_ratio = 7;
+
+let force_puppy = false;
+
+let dog_year_age = if force_puppy {
+    <- 2;
+} else if false {
+    <- dogs_age * dog_year_ratio;
+} else {
+    <- 500;
+} + 2;
+
+return dog_year_age;
+
+// return !false;

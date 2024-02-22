@@ -1,10 +1,17 @@
 use std::fs::File;
 
 use crate::{
-    fe::{ast::print_statements, symbols::SymbolTable, parser::Parser, types, item::Item, scope::Scope},
+    fe::{
+        ast::print_statements,
+        symbols::SymbolTable,
+        parser::Parser,
+        types,
+        item::Item,
+        scope::Scope
+    },
     be::{
         irgen::IrGen,
-        ir::{IrBlock, IrOp, IrOpKind},
+        ir::IrBlock,
         consts::ConstTable,
         platform::arm64::Arm64Generator,
         CompUnit
@@ -31,11 +38,11 @@ fn main() {
     scope.resolve_block(&mut syms, &mut stmts);
 
     types::type_check_block(&mut syms, &mut stmts);
+    println!("{:#?}", &consts);
     print_statements(&syms, 0, &stmts);
 
     let mut block = IrBlock::new();
     let mut generator = IrGen::new();
-    println!("{:#?}", &consts);
     let mut comp_unit = CompUnit {
         prog,
         consts,

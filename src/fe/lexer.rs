@@ -87,7 +87,7 @@ impl<'a> Lexer<'a> {
             '?' => Try,
             '!' => self.eq_variant(Not, NotEq),
             '=' => self.eq_variant(Assign, Eq),
-            '<' => self.eq_variant(Lt, LtEq),
+            '<' => if self.pick('-') { LeftArrow } else { self.eq_variant(Lt, LtEq) },
             '>' => self.eq_variant(Gt, GtEq),
 
             '&' if self.pick('&') => And,

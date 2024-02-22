@@ -12,7 +12,7 @@ pub enum IrOperand {
     /// Only kind available after graph coloring
     /// 0 = eax | x0 depending on the platform
     Register(Register),
-    Spilled(usize)
+    Spilled(usize),
 }
 
 impl IrOperand {
@@ -40,13 +40,17 @@ pub enum IrOpKind {
     Div,
     /// x = (-op1)
     Neg,
+    /// x = (!op1)
+    Not,
     /// () = ret op1
     Ret,
-    Jump(usize),
-    JumpNe(usize),
-    JumpEq(usize),
-    JumpLz(usize),
-    JumpGz(usize)
+    
+    /// (emits marker #(id))
+    DefMarker(usize),
+    /// jmp -> marker #(id)
+    Jmp(usize),
+    /// if (op1) then jmp marker #(id) else jmp marker #(eid)
+    If(usize, usize)
 }
 
 #[derive(Debug)]

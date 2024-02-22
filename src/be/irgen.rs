@@ -1,6 +1,4 @@
-//! The HLIR (high level intermediate representation) Generator
-
-use std::{collections::HashMap, ops::Range};
+//! The IR Generator
 
 use crate::fe::{ast::{AstNode, AstNodeKind, BinOp, UnOp, Statement}, symbols::SymbolTable, item::Item};
 
@@ -8,13 +6,15 @@ use super::{ir::*, consts::ConstTable, CompUnit};
 
 /// generates three address code
 pub struct IrGen {
-    next_temp: usize
+    next_temp: usize,
+    next_marker: usize
 }
 
 impl IrGen {
     pub fn new() -> Self {
         Self {
-            next_temp: 0
+            next_temp: 0,
+            next_marker: 0,
         }
     }
 
@@ -27,7 +27,20 @@ impl IrGen {
         // TODO: look for main function instead
         let Item::Function { code, .. } = unit.items.swap_remove(0) else { unreachable!() };
         let consts = &mut unit.consts;
-        for stmt in code {
+        let out = &self.allocate_temp();
+        self.gen_block_code(consts, sym_table, target, code, out);
+    }
+
+    fn gen_block_code<'a>(
+        &mut self,
+        consts: &mut ConstTable<'a>,
+        sym_table: &SymbolTable<'a>,
+        target: &mut IrBlock,
+        stmts: Vec<Statement<'a>>,
+        uni_out: &IrOperand
+    ) {
+        let exit = self.allocate_new_marker();
+        for stmt in stmts {
             match stmt {
                 Statement::Expression(ast) => { self.gen_code(consts, sym_table, target, ast); },
                 Statement::Return(ast) => {
@@ -49,13 +62,27 @@ impl IrGen {
                         ops: vec![out],
                         result_into: Some(IrOperand::Reference(id.unwrap_resolved()))
                     });
-                }
+                },
+                Statement::Out(val) => {
+                    let out = self.gen_code(consts, sym_table, target, val);
+                    target.ops.push(IrOp {
+                        kind: IrOpKind::Cpy,
+                        ops: vec![out],
+                        result_into: Some(uni_out.clone())
+                    });
+                    target.ops.push(IrOp {
+                        kind: IrOpKind::Jmp(exit),
+                        ops: vec![],
+                        result_into: None
+                    })
+                },
                 _ => { todo!() }
             };
-        }
+        };
+        self.push_marker(target, exit);
     }
 
-    /// generates code to evaluate the provided node and returns the ssa id of the result
+    /// generates code to evaluate the provided node and returns the ir operand of the result
     pub fn gen_code<'a>(
         &mut self,
         consts: &mut ConstTable<'a>,
@@ -113,6 +140,7 @@ impl IrGen {
                 target.ops.push(IrOp {
                     kind: match *op {
                         UnOp::Negate => Neg,
+                        UnOp::Not => Not,
                         _ => todo!("the other primitive unops aren't working yet!")
                     },
                     ops: vec![target_done],
@@ -123,6 +151,55 @@ impl IrGen {
             },
             AstNodeKind::Reference(r) => {
                 IrOperand::Reference(r.unwrap_resolved())
+            }
+            AstNodeKind::If { condition, body, else_body } => {
+                let cond = self.gen_code(consts, sym_table, target, condition);
+
+                let uout = self.allocate_temp();
+
+                let true_branch = self.allocate_new_marker();
+                let false_branch = self.allocate_new_marker();
+                let bypass = self.allocate_new_marker();
+
+                target.ops.push(IrOp {
+                    kind: IrOpKind::If(true_branch, false_branch),
+                    ops: vec![cond],
+                    result_into: Some(uout.clone())
+                });
+
+                self.push_marker(target, true_branch);
+                let local_out = self.gen_code(consts, sym_table, target, body);
+                target.ops.push(IrOp {
+                    kind: IrOpKind::Cpy,
+                    ops: vec![local_out.clone()],
+                    result_into: Some(uout.clone())
+                });
+                target.ops.push(IrOp {
+                    kind: IrOpKind::Jmp(bypass),
+                    ops: vec![],
+                    result_into: None
+                });
+                
+                // this is purposefully outside of the else check.
+                // if there is no else code, this just points to the end.
+                self.push_marker(target, false_branch);
+                if let Some(eb) = else_body {
+                    let local_out = self.gen_code(consts, sym_table, target, eb);
+                    target.ops.push(IrOp {
+                        kind: IrOpKind::Cpy,
+                        ops: vec![local_out.clone()],
+                        result_into: Some(uout.clone())
+                    });
+                }
+
+                self.push_marker(target, bypass);
+
+                uout
+            },
+            AstNodeKind::Block { stmts } => {
+                let o = self.allocate_temp();
+                self.gen_block_code(consts, sym_table, target, stmts, &o);
+                o
             }
             AstNodeKind::Error => panic!("tried to generate code from a faulty AST"),
         }
@@ -136,5 +213,25 @@ impl IrGen {
         let i = self.next_temp;
         self.next_temp += 1;
         i
+    }
+
+    fn allocate_new_marker(&mut self) -> usize {
+        let i = self.next_marker;
+        self.next_marker += 1;
+        i
+    }
+
+    fn push_new_marker(&mut self, target: &mut IrBlock) -> usize {
+        let i = self.allocate_new_marker();
+        self.push_marker(target, i);
+        i
+    }
+
+    fn push_marker(&mut self, target: &mut IrBlock, marker: usize) {
+        target.ops.push(IrOp {
+            kind: IrOpKind::DefMarker(marker),
+            ops: vec![],
+            result_into: None
+        });
     }
 }

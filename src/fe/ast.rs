@@ -93,7 +93,15 @@ pub enum AstNodeKind<'a> {
         op: Sp<'a, UnOp>,
         target: AstNode<'a>
     },
-    Error
+    Error,
+    If {
+        condition: AstNode<'a>,
+        body: AstNode<'a>,
+        else_body: Option<AstNode<'a>>
+    },
+    Block {
+        stmts: Vec<Statement<'a>>
+    }
 }
 
 impl<'a> AstNodeKind<'a> {
@@ -164,6 +172,7 @@ pub enum Statement<'a> {
         paths: Vec<ImportElement<'a>>
     },
     Return(AstNode<'a>),
+    Out(AstNode<'a>), // <-
     Error
 }
 
@@ -192,6 +201,14 @@ pub fn print_tree(symbols: &SymbolTable, depth: u16, label: &str, node: &AstNode
         AstNodeKind::Reference(r) => {
             println!("{}Reference({:?})", s, r);
         },
+        AstNodeKind::If { condition, body, else_body } => {
+            println!("{}If", s);
+            print_tree(symbols, depth + 1, "c", condition);
+            print_tree(symbols, depth + 1, "do", body);
+            if let Some(eb) = else_body {
+                print_tree(symbols, depth + 1, "el", eb);
+            }
+        }
         _ => println!("unknown")
     }
 }
@@ -212,12 +229,16 @@ pub fn print_statements(symbols: &SymbolTable, depth: u16, stmts: &Vec<Statement
                 println!("{}Return", s);
                 print_tree(symbols, depth + 1, "r", &e);
             },
+            Statement::Out(e) => {
+                println!("{}Out", s);
+                print_tree(symbols, depth + 1, "<=", &e)
+            },
             Statement::Import { paths } => {
                 println!("{}Import {:?}", s, paths);
             },
             Statement::Error => {
                 println!("{}Error!", s);
-            }
+            },
         }
     }
 }

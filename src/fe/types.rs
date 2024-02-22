@@ -1,8 +1,11 @@
 use crate::fe::ast::UnOp;
 use crate::fe::symbols::TypeProps;
-use super::{ast::{ConstantValue, AstNodeKind, AstNode, CompFloat, CompInt, BinOp, Statement, MaybeTyped}, CompileError, Sp, symbols::{SymbolTable, PrimitiveType, Symbol}};
+use super::{ast::{ConstantValue, AstNodeKind, AstNode, CompFloat, CompInt, BinOp, Statement, MaybeTyped}, CompileError, Sp, symbols::{SymbolTable, PrimitiveType, Symbol}, scope::Scope};
 
-pub fn type_check<'a>(symbols: &SymbolTable<'a>, ast: &mut AstNode<'a>) -> Vec<CompileError<'a>> {
+pub fn type_check<'a>(
+    symbols: &mut SymbolTable<'a>,
+    ast: &mut AstNode<'a>
+) -> Vec<CompileError<'a>> {
     let mut errors = vec![];
 
     ast.type_data = Some(match &mut *ast.kind {
@@ -84,18 +87,34 @@ pub fn type_check<'a>(symbols: &SymbolTable<'a>, ast: &mut AstNode<'a>) -> Vec<C
                 _ => todo!("unop semantic analysis is not fully implemented")
             }
         },
+        AstNodeKind::If { condition, body, else_body } => {
+            errors.append(&mut type_check(symbols, condition));
+            errors.append(&mut type_check(symbols, body));
+            if let Some(eb) = else_body {
+                errors.append(&mut type_check(symbols, eb));
+            }
+            body.type_data.unwrap()
+        },
+        AstNodeKind::Block { stmts } => {
+            let ret = type_check_block(symbols, stmts);
+            ret.0
+        }
         AstNodeKind::Error => todo!("fix your parse error for now"),
     });
 
     errors
 }
 
-pub fn type_check_block<'a>(symbols: &mut SymbolTable<'a>, block: &mut Vec<Statement<'a>>) -> Vec<CompileError<'a>> {
+pub fn type_check_block<'a>(
+    symbols: &mut SymbolTable<'a>,
+    block: &mut Vec<Statement<'a>>
+) -> (usize, Vec<CompileError<'a>>) {
     let errs = vec![];
+    let mut return_type = symbols.unit();
     for stmt in block {
         match stmt {
             Statement::Declare { with_type, value, id } => {
-                type_check(&symbols, value);
+                type_check(symbols, value);
                 let var = symbols.tbl.get_mut(&id.clone().unwrap_resolved()).unwrap();
                 match var.data {
                     Symbol::Variable { ref mut ty } => { *ty = value.type_data },
@@ -109,13 +128,20 @@ pub fn type_check_block<'a>(symbols: &mut SymbolTable<'a>, block: &mut Vec<State
                 assert_eq!(with_type.unwrap_type(), value.type_data.unwrap(), "type mismatch!")
             },
             Statement::Expression(e) => {
-                type_check(&symbols, e);
+                type_check(symbols, e);
             },
             Statement::Return(e) => {
-                type_check(&symbols, e);
+                type_check(symbols, e);
+                return_type = e.type_data.unwrap();
+                break;
             },
+            Statement::Out(e) => {
+                type_check(symbols, e);
+                return_type = e.type_data.unwrap();
+                break;
+            }
             Statement::Import { .. } | Statement::Error => { },
         };
     }
-    errs
+    (return_type, errs)
 }

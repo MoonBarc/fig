@@ -37,24 +37,30 @@ precs!(
 
 impl<'a> Parser<'a> {
     pub fn new(prog: &'a str) -> Parser<'a> {
-        let mut lexer = Lexer::new(prog);
-        let first = lexer.next();
-        Self {
-            next: first.unwrap(),
+        let lexer = Lexer::new(prog);
+        let mut s = Self {
+            next: Token::nothing_span(),
             current: Token::nothing_span(),
             lexer,
             errors: Vec::new(),
             panicking: false
-        } 
+        };
+        s.advance();
+        s
     }
 
     pub fn parse(mut self) -> (Vec<Statement<'a>>, Vec<CompileError<'a>>) {
+        let stmts = self.parse_block(&Token::Nothing);
+        (stmts, self.errors)
+    }
+
+    pub fn parse_block(&mut self, end: &Token) -> Vec<Statement<'a>> {
         let mut stmts = vec![];
-        while !self.pick(&Token::Nothing) {
+        while !self.pick(end) {
             let stmt = self.statement();
             stmts.push(stmt);
         }
-        (stmts, self.errors)
+        stmts
     }
 
     fn statement(&mut self) -> Statement<'a> {
@@ -62,6 +68,8 @@ impl<'a> Parser<'a> {
             self.import()
         } else if self.pick(&Token::Let) {
             self.decl()
+        } else if self.pick(&Token::LeftArrow) {
+            self.out()
         } else if self.pick(&Token::Return) {
             self.ret()
         } else {
@@ -73,17 +81,17 @@ impl<'a> Parser<'a> {
         }
         stmt
     }
-    
-    pub fn parse_expr(mut self) -> (AstNode<'a>, Vec<CompileError<'a>>) {
-        let thing = self.top_parse();
-        (thing, self.errors)
-    }
 
     fn unwrap_current_id_unchecked(&self) -> &'a str {
         match *self.current {
             Token::Identifier(i) => i,
             _ => unreachable!()
         }
+    }
+
+    fn out(&mut self) -> Statement<'a> {
+        let expr = self.top_parse();
+        Statement::Out(expr)
     }
 
     fn ret(&mut self) -> Statement<'a> {
@@ -166,13 +174,13 @@ impl<'a> Parser<'a> {
         let mut node = match self.advance() {
             n if n.is_value() => self.value(),
             Identifier(..) => self.ident(),
+            If => self.if_expr(),
             LParen => self.group(),
             Sub | Not => self.unary(prec),
-            // Identifier(_) => self.identifier(),
             _ => {
                 dbg!(&self.current, &self.next);
-                panic!();
-                return self.error("expected expression")
+                panic!("expected expression");
+                // return self.error("expected expression")
             }
         };
 
@@ -188,6 +196,39 @@ impl<'a> Parser<'a> {
         }
 
         node 
+    }
+
+    fn block_expr(&mut self) -> AstNode<'a> {
+        let b = AstNodeKind::Block {
+            stmts: self.parse_block(&Token::RBrace)
+        };
+        self.sp(b)
+    }
+
+    fn if_expr(&mut self) -> AstNode<'a> {
+        let condition = self.top_parse();
+
+        if !self.pick(&Token::LBrace) {
+            return self.error("expected `{` to open block after condition");
+        }
+        let body = self.block_expr();
+
+        let else_body = if self.pick(&Token::Else) {
+            if self.pick(&Token::If) {
+                Some(self.if_expr())
+            } else {
+                if !self.pick(&Token::LBrace) {
+                    return self.error("expected `{` to open block after else");
+                }
+                Some(self.block_expr())
+            }
+        } else { None };
+
+        self.sp(AstNodeKind::If {
+            condition,
+            body,
+            else_body
+        })
     }
 
     fn ident(&mut self) -> AstNode<'a> {

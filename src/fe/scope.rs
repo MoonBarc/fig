@@ -1,5 +1,3 @@
-use std::mem;
-
 use super::{ast::{AstNode, Statement, AstNodeKind, Reference}, symbols::{SymbolTable, Symbol}, Sp};
 
 pub struct ScopeItem<'a> {
@@ -52,7 +50,7 @@ impl<'a> Scope<'a> {
         None
     }
 
-    pub fn resolve(&mut self, ast: &mut AstNode) {
+    pub fn resolve(&mut self, syms: &mut SymbolTable<'a>, ast: &mut AstNode<'a>) {
         match &mut *ast.kind {
             AstNodeKind::Reference(ref mut r) => {
                 let ra = r.clone().unwrap_str();
@@ -60,8 +58,16 @@ impl<'a> Scope<'a> {
                     .expect(&format!("unresolved identifier `{}`", ra));
                 *r = Reference::Resolved(thing);
             },
-            AstNodeKind::BinOp { a, b, .. } => { self.resolve(a); self.resolve(b); }
-            AstNodeKind::UnOp { target, .. } => { self.resolve(target); }
+            AstNodeKind::BinOp { a, b, .. } => { self.resolve(syms, a); self.resolve(syms, b); }
+            AstNodeKind::UnOp { target, .. } => { self.resolve(syms, target); }
+            AstNodeKind::Block { stmts } => { self.resolve_block(syms, stmts); }
+            AstNodeKind::If { condition, body, else_body } => {
+                self.resolve(syms, condition);
+                self.resolve(syms, body);
+                if let Some(eb) = else_body {
+                    self.resolve(syms, eb);
+                }
+            }
             _ => { /* irrelevant! */ }
         }
     }
@@ -70,7 +76,7 @@ impl<'a> Scope<'a> {
         for s in stmts {
             match s {
                 Statement::Declare { value, ref mut id, .. } => {
-                    self.resolve(value);
+                    self.resolve(syms, value);
                     // add new thing to the thang
                     // HACK: THIS IS BUILTIN ABUSE!!!
                     let sym = syms.add(Sp::builtin(Symbol::Variable { ty: None }));
@@ -78,8 +84,9 @@ impl<'a> Scope<'a> {
                     self.add(sym, id.clone().unwrap_str());
                     *id = Reference::Resolved(sym);
                 },
-                Statement::Expression(e) => self.resolve(e),
-                Statement::Return(e) => self.resolve(e),
+                Statement::Expression(e) => self.resolve(syms, e),
+                Statement::Return(e) => self.resolve(syms, e),
+                Statement::Out(e) => self.resolve(syms, e),
                 Statement::Error | Statement::Import { .. } => todo!(),
             }
         }

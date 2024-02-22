@@ -54,6 +54,7 @@ pub enum Token<'a> {
     // Other
     At, // @
     Arrow, // ->
+    LeftArrow, // <-
 
     // Keywords
     Let,

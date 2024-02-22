@@ -56,8 +56,15 @@ impl<'a, T: Write> Arm64Generator<'a, T> {
                         _ => todo!("other number types are not supported yet!")
                     } 
                 },
+                ConstantValue::Bool(b) => {
+                    // OPTIMIZATION: This is really low hanging fruit.
+                    // A new constant is not necessary for every boolean value, just .true & .false
+                    // Maybe a const dedup would fix this
+                    
+                    // imagine what would happen if someone switched these lol
+                    self.instr(&format!(".quad {}", if *b { 1 } else { 0 }))
+                },
                 ConstantValue::CompFloat(f) => todo!(),
-                ConstantValue::Bool(_) => todo!(),
                 ConstantValue::Nil => todo!(),
             }
         }
@@ -99,11 +106,16 @@ impl<'a, T: Write> Arm64Generator<'a, T> {
                     };
                     self.instr(&format!("{} {}, {}, {}", iname, out, a, b));
                 },
-                Neg => {
+                Neg | Not => {
                     let [i] = &instr.ops[..] else { unreachable!() };
                     let x = i.arm_asm();
                     let out = into.unwrap();
-                    self.instr(&format!("neg {}, {}", out, x));
+                    let iname = match instr.kind {
+                        Neg => "neg",
+                        Not => "mvn",
+                        _ => unreachable!()
+                    };
+                    self.instr(&format!("{} {}, {}", iname, out, x));
                 },
                 Cpy => {
                     let [i] = &instr.ops[..] else { unreachable!() };
@@ -116,6 +128,22 @@ impl<'a, T: Write> Arm64Generator<'a, T> {
                     self.instr(&format!("mov x0, {}", x0));
                     self.instr("ret");
                 },
+                DefMarker(u) => {
+                    self.write(&format!("marker_{}:\n", u));
+                },
+                Jmp(to) => {
+                    self.instr(&format!("b marker_{}", to));
+                },
+                If(yes, no) => {
+                    let [cond] = &instr.ops[..] else { unreachable!() };
+                    let x = cond.arm_asm();
+                    // is it true?
+                    self.instr(&format!("cmp {}, #1", x));
+                    // yes
+                    self.instr(&format!("b.eq marker_{}", yes));
+                    // no
+                    self.instr(&format!("b marker_{}", no));
+                }
                 _ => {}
             }
         }
