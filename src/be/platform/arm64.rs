@@ -112,7 +112,10 @@ impl<'a, T: Write> Arm64Generator<'a, T> {
                     let out = into.unwrap();
                     let iname = match instr.kind {
                         Neg => "neg",
-                        Not => "mvn",
+                        Not => {
+                            self.instr(&format!("eor {}, {}, #1", out, x));
+                            continue
+                        },
                         _ => unreachable!()
                     };
                     self.instr(&format!("{} {}, {}", iname, out, x));
@@ -144,7 +147,6 @@ impl<'a, T: Write> Arm64Generator<'a, T> {
                     // no
                     self.instr(&format!("b marker_{}", no));
                 }
-                _ => {}
             }
         }
     }

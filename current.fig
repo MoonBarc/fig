@@ -7,7 +7,7 @@ let force_puppy = false;
 
 let dog_year_age = if force_puppy {
     <- 2;
-} else if false {
+} else if !true {
     <- dogs_age * dog_year_ratio;
 } else {
     <- 500;
