@@ -38,6 +38,10 @@ pub enum IrOpKind {
     Mul,
     /// x = (op1/op2)
     Div,
+    /// x = (op1 == op2)
+    Eq,
+    /// x = (op1 != op2)
+    NotEq,
     /// x = (-op1)
     Neg,
     /// x = (!op1)

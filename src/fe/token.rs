@@ -97,8 +97,6 @@ impl Token<'_> {
         }
     }
 
-    // TODO: Stuff for optional semicolons
-
     pub fn is_value(&self) -> bool {
         use Token::*;
         match self {
@@ -106,6 +104,8 @@ impl Token<'_> {
             _ => false
         }
     }
+
+    // TODO: Stuff for optional semicolons
 
     pub fn can_end_stmt(&self) -> bool {
         use Token::*;
@@ -130,7 +130,7 @@ impl Token<'_> {
             Assign | AddEq | SubEq | MulEq | DivEq | PowEq | ModEq => prec::ASSIGN,
             Or => prec::OR,
             And => prec::AND,
-            Gt | GtEq | Lt | LtEq => prec::COMP,
+            Eq | NotEq | Gt | GtEq | Lt | LtEq => prec::COMP,
             Add | Sub => prec::TERM,
             Mul | Div | Mod => prec::FACTOR,
             Pow => prec::POW,

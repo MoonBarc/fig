@@ -17,7 +17,6 @@ impl IntoArmReg for IrOperand {
 }
 
 pub struct Arm64Generator<'a, T: Write> {
-    next_block_id: usize,
     output: BufWriter<T>,
     unit: CompUnit<'a>
 }
@@ -25,7 +24,6 @@ pub struct Arm64Generator<'a, T: Write> {
 impl<'a, T: Write> Arm64Generator<'a, T> {
     pub fn new(wr: T, unit: CompUnit<'a>) -> Self {
         let mut s = Self {
-            next_block_id: 0,
             output: BufWriter::new(wr),
             unit
         };
@@ -106,6 +104,21 @@ impl<'a, T: Write> Arm64Generator<'a, T> {
                     };
                     self.instr(&format!("{} {}, {}, {}", iname, out, a, b));
                 },
+                Eq | NotEq => {
+                    let out = into.unwrap();
+                    let [a, b] = &instr.ops[..] else { unreachable!() };
+                    let a = a.arm_asm();
+                    let b = b.arm_asm();
+                    self.instr(&format!("cmp {}, {}", a, b));
+
+                    let equality_flag = match instr.kind {
+                        Eq => "EQ",
+                        NotEq => "NE",
+                        _ => unreachable!()
+                    };
+
+                    self.instr(&format!("cset {}, {}", out, equality_flag));
+                },
                 Neg | Not => {
                     let [i] = &instr.ops[..] else { unreachable!() };
                     let x = i.arm_asm();
@@ -159,13 +172,6 @@ impl<'a, T: Write> Arm64Generator<'a, T> {
         self.write(
             ".global _fig_entrypoint\n_fig_entrypoint:\n"
         );
-    }
-
-    fn block(&mut self) -> usize {
-        let b = self.next_block_id;
-        self.write(&format!("_{}:", b));
-        self.next_block_id += 1;
-        b
     }
 
     fn write(&mut self, txt: &str) {

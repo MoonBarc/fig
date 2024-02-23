@@ -4,10 +4,17 @@ use crate::fe::{ast::{AstNode, AstNodeKind, BinOp, UnOp, Statement}, symbols::Sy
 
 use super::{ir::*, consts::ConstTable, CompUnit};
 
+pub struct IrContext {
+    break_to: Option<usize>,
+    break_out: Option<IrOperand>,
+    continue_to: Option<usize>
+}
+
 /// generates three address code
 pub struct IrGen {
     next_temp: usize,
-    next_marker: usize
+    next_marker: usize,
+    context: Vec<IrContext>
 }
 
 impl IrGen {
@@ -15,6 +22,7 @@ impl IrGen {
         Self {
             next_temp: 0,
             next_marker: 0,
+            context: vec![]
         }
     }
 
@@ -76,6 +84,41 @@ impl IrGen {
                         result_into: None
                     })
                 },
+                Statement::Continue { label } => {
+                    if label.is_some() {
+                        todo!("continue labels");
+                    }
+                    let ctx = self.context.last().unwrap();
+                    target.ops.push(IrOp {
+                        kind: IrOpKind::Jmp(ctx.continue_to.unwrap()),
+                        ops: vec![],
+                        result_into: None
+                    })
+                }
+                Statement::Break { label, with } => {
+                    if label.is_some() {
+                        todo!("break labels")
+                    }
+                    let ctx = self.context.last().unwrap();
+                    let break_to = ctx.break_to.unwrap();
+                    
+                    if let Some(with) = with {
+                        let break_out = ctx.break_out.clone();
+                        let out = self.gen_code(consts, sym_table, target, with);
+
+                        target.ops.push(IrOp {
+                            kind: IrOpKind::Cpy,
+                            ops: vec![out],
+                            result_into: break_out
+                        })
+                    }
+
+                    target.ops.push(IrOp {
+                        kind: IrOpKind::Jmp(break_to),
+                        ops: vec![],
+                        result_into: None
+                    });
+                }
                 _ => { todo!() }
             };
         };
@@ -124,6 +167,8 @@ impl IrGen {
                         BinOp::Sub => Sub,
                         BinOp::Mul => Mul,
                         BinOp::Div => Div,
+                        BinOp::Eq => Eq,
+                        BinOp::NotEq => NotEq,
                         _ => todo!("many primitive binops are missing at the moment!")
                     },
                     ops: vec![a, b],
@@ -200,7 +245,26 @@ impl IrGen {
                 let o = self.allocate_temp();
                 self.gen_block_code(consts, sym_table, target, stmts, &o);
                 o
-            }
+            },
+            AstNodeKind::Loop { body } => {
+                let start_mark = self.push_new_marker(target);
+                let end_mark = self.allocate_new_marker();
+                let o = self.allocate_temp();
+                self.context.push(IrContext {
+                    continue_to: Some(start_mark),
+                    break_out: Some(o.clone()),
+                    break_to: Some(end_mark)
+                });
+                self.gen_code(consts, sym_table, target, body);
+                target.ops.push(IrOp {
+                    kind: IrOpKind::Jmp(start_mark),
+                    ops: vec![],
+                    result_into: None
+                });
+                self.push_marker(target, end_mark);
+                self.context.pop();
+                o
+            },
             AstNodeKind::Error => panic!("tried to generate code from a faulty AST"),
         }
     }

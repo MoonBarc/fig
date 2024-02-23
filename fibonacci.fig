@@ -1,0 +1,29 @@
+//! Fibonacci Number Calculator
+
+// The target number
+let n = 20;
+let iterations = 1000000;
+let iter_num = 0;
+let result = 0;
+
+loop {
+    let a = 0;
+    let b = 1;
+    let i = 0;
+
+    result = loop {
+        let temp = b;
+        b = a + b;
+        a = temp;
+        if i == n - 2 {
+            break b;
+        };
+        i = i + 1;
+    };
+    iter_num = iter_num + 1;
+    if iter_num == iterations {
+        break;
+    };
+};
+
+return result;

@@ -75,7 +75,8 @@ impl<'a> Reference<'a> {
     pub fn unwrap_resolved(self) -> usize {
         match self {
             Self::Resolved(a) => a,
-            _ => unreachable!()
+            _ => panic!("{:?}", self)
+            // _ => unreachable!()
         }
     }
 }
@@ -98,6 +99,9 @@ pub enum AstNodeKind<'a> {
         condition: AstNode<'a>,
         body: AstNode<'a>,
         else_body: Option<AstNode<'a>>
+    },
+    Loop {
+        body: AstNode<'a>
     },
     Block {
         stmts: Vec<Statement<'a>>
@@ -173,6 +177,13 @@ pub enum Statement<'a> {
     },
     Return(AstNode<'a>),
     Out(AstNode<'a>), // <-
+    Continue {
+        label: Option<usize>
+    },
+    Break {
+        label: Option<usize>,
+        with: Option<AstNode<'a>>
+    },
     Error
 }
 
@@ -208,8 +219,17 @@ pub fn print_tree(symbols: &SymbolTable, depth: u16, label: &str, node: &AstNode
             if let Some(eb) = else_body {
                 print_tree(symbols, depth + 1, "el", eb);
             }
+        },
+        AstNodeKind::Block { stmts } => {
+            print_statements(symbols, depth + 1, stmts);
+        },
+        AstNodeKind::Loop { body } => {
+            println!("{}Loop", s);
+            print_tree(symbols, depth + 1, "body", body);
         }
-        _ => println!("unknown")
+        AstNodeKind::Error => {
+            println!("{}Error", s);
+        }
     }
 }
 
@@ -231,11 +251,20 @@ pub fn print_statements(symbols: &SymbolTable, depth: u16, stmts: &Vec<Statement
             },
             Statement::Out(e) => {
                 println!("{}Out", s);
-                print_tree(symbols, depth + 1, "<=", &e)
+                print_tree(symbols, depth + 1, "<-", &e)
             },
             Statement::Import { paths } => {
                 println!("{}Import {:?}", s, paths);
             },
+            Statement::Break { label, with } => {
+                println!("{}Break({:?})", s, label);
+                if let Some(w) = with {
+                    print_tree(symbols, depth + 1, "with", &w);
+                }
+            },
+            Statement::Continue { label } => {
+                println!("{}Continue({:?})", s, label);
+            }
             Statement::Error => {
                 println!("{}Error!", s);
             },

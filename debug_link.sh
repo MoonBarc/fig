@@ -1,4 +1,4 @@
-#!/bin/sh
+#!/bin/bash
 
 mkdir -p tmp
 mv ./prog_out.s ./tmp/prog_out.s

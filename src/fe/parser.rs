@@ -64,6 +64,7 @@ impl<'a> Parser<'a> {
     }
 
     fn statement(&mut self) -> Statement<'a> {
+        // TODO: low hanging optimization fruit
         let stmt = if self.pick(&Token::Import) {
             self.import()
         } else if self.pick(&Token::Let) {
@@ -72,6 +73,10 @@ impl<'a> Parser<'a> {
             self.out()
         } else if self.pick(&Token::Return) {
             self.ret()
+        } else if self.pick(&Token::Break) {
+            self.break_stmt()
+        } else if self.pick(&Token::Continue) {
+            self.continue_stmt()
         } else {
             Statement::Expression(self.top_parse())
         };
@@ -127,6 +132,19 @@ impl<'a> Parser<'a> {
         }
     }
 
+    // TODO: labels
+    fn break_stmt(&mut self) -> Statement<'a> {
+        let val = if let Token::Semicolon = *self.next { None }
+        else {
+            Some(self.top_parse())
+        };
+        Statement::Break { label: None, with: val }
+    }
+
+    fn continue_stmt(&mut self) -> Statement<'a> {
+        Statement::Continue { label: None }
+    }
+
     fn import(&mut self) -> Statement<'a> {
         let root = self.import_elem();
         Statement::Import {
@@ -175,10 +193,12 @@ impl<'a> Parser<'a> {
             n if n.is_value() => self.value(),
             Identifier(..) => self.ident(),
             If => self.if_expr(),
+            Loop => self.loop_expr(),
             LParen => self.group(),
             Sub | Not => self.unary(prec),
+            LBrace => self.block_expr(),
             _ => {
-                dbg!(&self.current, &self.next);
+                dbg!(&self.current, &self.next, &self.errors);
                 panic!("expected expression");
                 // return self.error("expected expression")
             }
@@ -190,7 +210,8 @@ impl<'a> Parser<'a> {
         } {
             node = match self.advance() {
                 Add | AddEq | Sub | SubEq | Mul | MulEq | Div | DivEq
-                    | Pow | PowEq | Mod | ModEq | Assign => self.binary(node, self.current.get_precedence() + 1),
+                    | Pow | PowEq | Mod | ModEq | Assign
+                    | Eq | NotEq | Gt | GtEq | Lt | LtEq => self.binary(node, self.current.get_precedence() + 1),
                 x => panic!("{:#?} has precedence but no associated infix operation", x)
             };
         }
@@ -203,6 +224,15 @@ impl<'a> Parser<'a> {
             stmts: self.parse_block(&Token::RBrace)
         };
         self.sp(b)
+    }
+
+    fn loop_expr(&mut self) -> AstNode<'a> {
+        if !self.pick(&Token::LBrace) {
+            return self.error("expected `{` to open loop block");
+        }
+        let b = self.block_expr();
+
+        self.sp(AstNodeKind::Loop { body: b })
     }
 
     fn if_expr(&mut self) -> AstNode<'a> {

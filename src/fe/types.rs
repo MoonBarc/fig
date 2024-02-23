@@ -1,6 +1,6 @@
 use crate::fe::ast::UnOp;
 use crate::fe::symbols::TypeProps;
-use super::{ast::{ConstantValue, AstNodeKind, AstNode, CompFloat, CompInt, BinOp, Statement, MaybeTyped}, CompileError, Sp, symbols::{SymbolTable, PrimitiveType, Symbol}, scope::Scope};
+use super::{ast::{ConstantValue, AstNodeKind, AstNode, CompFloat, CompInt, BinOp, Statement, MaybeTyped}, CompileError, symbols::{SymbolTable, PrimitiveType, Symbol}};
 
 pub fn type_check<'a>(
     symbols: &mut SymbolTable<'a>,
@@ -52,6 +52,9 @@ pub fn type_check<'a>(
                     };
                     a.type_data.unwrap()
                 },
+                BinOp::Eq | BinOp::NotEq | BinOp::Gt | BinOp::GtEq | BinOp::Lt | BinOp::LtEq => {
+                    symbols.get_primitive(PrimitiveType::Bool)
+                }
                 BinOp::Assign => {
                     symbols.unit() // at least for now
                 }
@@ -98,6 +101,10 @@ pub fn type_check<'a>(
         AstNodeKind::Block { stmts } => {
             let ret = type_check_block(symbols, stmts);
             ret.0
+        },
+        AstNodeKind::Loop { body } => {
+            errors.append(&mut type_check(symbols, body));
+            body.type_data.unwrap()
         }
         AstNodeKind::Error => todo!("fix your parse error for now"),
     });
@@ -107,7 +114,7 @@ pub fn type_check<'a>(
 
 pub fn type_check_block<'a>(
     symbols: &mut SymbolTable<'a>,
-    block: &mut Vec<Statement<'a>>
+    block: &mut Vec<Statement<'a>>,
 ) -> (usize, Vec<CompileError<'a>>) {
     let errs = vec![];
     let mut return_type = symbols.unit();
@@ -130,16 +137,16 @@ pub fn type_check_block<'a>(
             Statement::Expression(e) => {
                 type_check(symbols, e);
             },
-            Statement::Return(e) => {
+            Statement::Return(e) | Statement::Out(e) => {
                 type_check(symbols, e);
                 return_type = e.type_data.unwrap();
                 break;
             },
-            Statement::Out(e) => {
+            Statement::Break { with: Some(e), .. } => {
                 type_check(symbols, e);
-                return_type = e.type_data.unwrap();
                 break;
             }
+            Statement::Continue { .. } | Statement::Break { .. } => { break },
             Statement::Import { .. } | Statement::Error => { },
         };
     }

@@ -67,7 +67,8 @@ impl<'a> Scope<'a> {
                 if let Some(eb) = else_body {
                     self.resolve(syms, eb);
                 }
-            }
+            },
+            AstNodeKind::Loop { body } => { self.resolve(syms, body) },
             _ => { /* irrelevant! */ }
         }
     }
@@ -84,9 +85,11 @@ impl<'a> Scope<'a> {
                     self.add(sym, id.clone().unwrap_str());
                     *id = Reference::Resolved(sym);
                 },
-                Statement::Expression(e) => self.resolve(syms, e),
-                Statement::Return(e) => self.resolve(syms, e),
-                Statement::Out(e) => self.resolve(syms, e),
+                Statement::Expression(e)
+                    | Statement::Return(e)
+                    | Statement::Out(e)
+                    | Statement::Break { with: Some(e), .. } => self.resolve(syms, e),
+                Statement::Continue { .. } | Statement::Break { .. }=> {/* nothing to do */}
                 Statement::Error | Statement::Import { .. } => todo!(),
             }
         }

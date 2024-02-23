@@ -22,7 +22,7 @@ mod fe;
 mod be;
 
 fn main() {
-    let prog = include_str!("../current.fig");
+    let prog = include_str!("../fibonacci.fig");
     let mut syms = SymbolTable::new();
     let consts = ConstTable::new();
     let parser = Parser::new(prog);

@@ -1,13 +1,13 @@
 //! Generic Register Allocator
 
-use std::{collections::HashMap, ops::Range, hash::{self, Hasher, Hash}};
+use std::{collections::HashMap, ops::Range, hash::{Hasher, Hash}};
 
-use crate::be::ir::Register;
+use crate::be::ir::{Register, IrOpKind};
 
 use super::ir::{IrBlock, IrOperand};
 
 pub struct RegisterAllocator {
-    registers: u8
+    registers: u8,
 }
 
 impl RegisterAllocator {
@@ -19,8 +19,66 @@ impl RegisterAllocator {
         println!("ralloc!");
         let mut ranges = HashMap::<IrOperand, Range<usize>>::new();
         let mut graph = InterferenceGraph::new();
+        let mut seen_markers = HashMap::<usize, usize>::new();
         // determine ranges!
         for (ln, i) in b.ops.iter().enumerate() {
+            match i.kind {
+                IrOpKind::DefMarker(m) => {
+                    seen_markers.insert(m, ln);
+                    continue;
+                },
+                IrOpKind::Jmp(j) => {
+                    let m = seen_markers.get(&j);
+                    if let Some(from) = m {
+                        // loop detected!
+                        let loop_range = *from..ln;
+                        for instr in &b.ops[loop_range.clone()] {
+                            for o in &instr.ops {
+                                // is it defined inside the loop? if so, ignore.
+                                let r = ranges.get(o).unwrap();
+                                if loop_range.contains(&r.start) { continue }
+                                // extend the live range to cover the entire loop
+                                ranges.insert(o.clone(), r.start..loop_range.end);
+                            }
+                            if let Some(o) = &i.result_into {
+                                let r = ranges.get(o).unwrap();
+                                if r.start < loop_range.start { continue }
+                                // extend the live range to cover the entire loop
+                                ranges.insert(o.clone(), r.start..loop_range.end);
+                            }
+                        }
+                    }
+                }
+                _ => {}
+            };
+            // match i.kind {
+            //     IrOpKind::DefMarker(m) => {
+            //         seen_markers.insert(m, ln);
+            //         continue;
+            //     },
+            //     IrOpKind::Jmp(j) => {
+            //         let m = seen_markers.get(&j);
+            //         if let Some(from) = m {
+            //             // loop detected!
+            //             let loop_range = *from..ln;
+            //             for instr in &b.ops[loop_range.clone()] {
+            //                 for o in &instr.ops {
+            //                     // is it defined inside the loop? if so, ignore.
+            //                     let r = ranges.get(o).unwrap();
+            //                     if loop_range.contains(&r.start) { continue }
+            //                     ranges.insert(o.clone(), r.start..loop_range.end);
+            //                 }
+            //                 if let Some(o) = &i.result_into {
+            //                     let r = ranges.get(o).unwrap();
+            //                     if r.start < loop_range.start { continue }
+            //                     ranges.insert(o.clone(), r.start..loop_range.end);
+            //                 }
+            //             }
+            //         }
+            //     }
+            //     _ => {}
+            // };
+
             // is it declaring anything?
             if let Some(into_reg) = &i.result_into {
                 // update its live times
@@ -30,7 +88,7 @@ impl RegisterAllocator {
                 ranges.insert(into_reg.clone(), times.start..ln+1);
             }
 
-            // is it used anywhere?
+            // is anything being used here?
             for o in &i.ops {
                 let range_of_this_line = ln - 1..ln;
                 let times = ranges.get(&o).unwrap_or(&range_of_this_line);
@@ -130,6 +188,7 @@ impl RegisterAllocator {
 
 pub trait RegAllocProfile {
     fn make() -> RegisterAllocator;
+    fn init_interference(g: &mut InterferenceGraph);
 }
 
 pub struct InterferenceGraph {

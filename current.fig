@@ -14,5 +14,3 @@ let dog_year_age = if force_puppy {
 } + 2;
 
 return dog_year_age;
-
-// return !false;
