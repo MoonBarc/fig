@@ -1,16 +1,9 @@
-let dogs_age = 5;
-
-// The ratio between dog years to human years (1:7)
-let dog_year_ratio = 7;
-
-let force_puppy = false;
-
-let dog_year_age = if force_puppy {
-    <- 2;
-} else if !true {
-    <- dogs_age * dog_year_ratio;
+let insurance_rate = if age < 18 {
+    <- 200;
+} else if age < 35 {
+    <- 100;
 } else {
-    <- 500;
-} + 2;
+    <- 100 - (age-35);
+};
 
-return dog_year_age;
+return insurance_rate;

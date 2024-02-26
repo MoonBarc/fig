@@ -1,4 +1,4 @@
-iterations = 1_000_000
+iterations = 100_000_000
 
 for _ in range(iterations):
     n = 20
