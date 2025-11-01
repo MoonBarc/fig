@@ -1,3 +1,7 @@
+// This file outlines the end-game design goals
+// for the Fig language and does not represent the
+// current implementation of the language.
+
 import http.(App, Auth, Router)
 
 fn main() {
@@ -8,15 +12,14 @@ fn main() {
     // (with only ONE type of arrow :O)
     print(match name {
         "lawson" -> "you are really cool!",
-	other -> "{other} is really cool!"
+        other -> "{other} is really cool!"
     })
 
-    // if expressions can be put pretty much
-    // anywhere
+    // if expressions can be put pretty much anywhere (implemented)
     let condition = false
     print(if condition { "yes" } else { "no" })
 
-    // unicode support
+    // unicode support (implemented)
     // but only alphanumeric characters
     // also, the formatter will eventually support turning things like
     // \pi into the actual π character.

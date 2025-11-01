@@ -1,9 +1,11 @@
 # The Fig Programming Language
 > ⚠️ Work in Progress! ⚠️
 
-Fig is a compiled, statically-typed, garbage collected and expressive programming language.
+Fig is a compiled, statically-typed, garbage collected and expressive programming language
+targeting the arm64 architecture.
 
 ## A Taste of Fig
+This is the current state of the language:
 ```fig
 // for now, the top level of the file is the main function
 
@@ -28,13 +30,13 @@ let other_thing = loop {
 return thing + other_thing;
 ```
 
-## Todo
+The finished language will look something like `design.fig`.
+
+## Future Work
 - [ ] More Data Types
-  - [x] Boolean
-  - [ ] String
-  - [ ] Float
 - [ ] Functions
 - [ ] Core Library
 - [ ] Garbage Collection
 - [ ] Remove semicolons
+- [ ] x86-64
 
